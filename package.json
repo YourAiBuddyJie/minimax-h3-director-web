@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
+    "start": "wrangler dev --config dist/server/wrangler.json --port 3000 --ip 127.0.0.1",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "lint": "oxlint app",
     "format": "oxfmt"
   },

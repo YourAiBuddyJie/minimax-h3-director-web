@@ -5,6 +5,7 @@ export type DirectorBeat = {
   mode: 'Ref2VA' | 'FL2VA' | 'T2V';
   status: 'ready' | 'review' | 'draft';
   summary: string;
+  prompt: string;
 };
 
 export type DirectorAnalysis = {
@@ -31,6 +32,7 @@ export function createLocalDraft(script: string): DirectorAnalysis {
       mode: hasStateChange ? 'FL2VA' : hasDialogue ? 'Ref2VA' : 'T2V',
       status: index === 0 ? 'review' : 'draft',
       summary: block.slice(0, 72),
+      prompt: `单一连续空间，镜头围绕以下剧情行动展开：${block}。保持人物身份、服装、空间轴线、道具状态和身体状态连续；对白必须保持原文、顺序与说话对象；不要字幕、水印或额外文字。`,
     };
   });
   return { projectTitle: '未命名短剧', characters, spaces: [], conflicts: ['本地草稿尚未完成素材与连续性语义检查'], beats, source: 'local-draft' };

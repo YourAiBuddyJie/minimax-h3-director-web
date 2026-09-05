@@ -11,8 +11,8 @@ const schema = {
     beats: { type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, properties: {
       id: { type: 'string' }, title: { type: 'string' }, duration: { type: 'string' },
       mode: { type: 'string', enum: ['Ref2VA', 'FL2VA', 'T2V'] },
-      status: { type: 'string', enum: ['ready', 'review', 'draft'] }, summary: { type: 'string' },
-    }, required: ['id', 'title', 'duration', 'mode', 'status', 'summary'] } },
+      status: { type: 'string', enum: ['ready', 'review', 'draft'] }, summary: { type: 'string' }, prompt: { type: 'string' },
+    }, required: ['id', 'title', 'duration', 'mode', 'status', 'summary', 'prompt'] } },
   }, required: ['projectTitle', 'characters', 'spaces', 'conflicts', 'beats'],
 } as const;
 
