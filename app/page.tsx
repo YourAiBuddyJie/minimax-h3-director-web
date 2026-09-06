@@ -12,6 +12,7 @@ import { ModelSettingsDialog } from '@/components/model-settings-dialog';
 import type { DirectorAnalysis, DirectorBeat } from '@/lib/director';
 import type { ApiWorkflow } from '@/lib/comfy';
 import { providerPresets, type ProviderConfig, type ProviderId } from '@/lib/providers';
+import { matchBuiltInWorkflow } from '@/lib/workflow-library';
 
 const initialBeats: DirectorBeat[] = [
   { id: '01', title: '寒池醒转', duration: '7.5s', mode: 'Ref2VA', status: 'ready', summary: '沈昭从寒水中惊醒，确认陌生环境与身体伤势。', prompt: '单一寒池空间，沈昭从寒水中惊醒，确认手腕勒痕；保持人物、服装、空间与伤势连续，无字幕。' },
@@ -39,8 +40,11 @@ export default function Home() {
   const workflowInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [workflow, setWorkflow] = useState<ApiWorkflow | null>(null);
-  const [workflowName, setWorkflowName] = useState('');
+  const [manualWorkflow, setManualWorkflow] = useState<ApiWorkflow | null>(null);
+  const [manualWorkflowName, setManualWorkflowName] = useState('');
+  const [builtInWorkflow, setBuiltInWorkflow] = useState<{ id: string; value: ApiWorkflow } | null>(null);
+  const [workflowSource, setWorkflowSource] = useState<'auto' | 'manual'>('auto');
+  const [compatibility, setCompatibility] = useState<{ state: 'idle' | 'checking' | 'compatible' | 'incompatible'; missing: string[] }>({ state: 'idle', missing: [] });
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [megapixels, setMegapixels] = useState(0.4);
   const [steps, setSteps] = useState(20);
@@ -49,10 +53,13 @@ export default function Home() {
   const [qc, setQc] = useState<'pending' | 'passed' | 'failed'>('pending');
   const [qcFrames, setQcFrames] = useState<string[]>([]);
   const beat = useMemo(() => beats.find((item) => item.id === selected) ?? beats[0] ?? initialBeats[0], [beats, selected]);
+  const matchedWorkflow = useMemo(() => matchBuiltInWorkflow(beat.mode), [beat.mode]);
+  const workflow = workflowSource === 'manual' ? manualWorkflow : builtInWorkflow?.id === matchedWorkflow.id ? builtInWorkflow.value : null;
+  const workflowName = workflowSource === 'manual' ? manualWorkflowName : matchedWorkflow.name;
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const saved = window.localStorage.getItem('h3-director-project');
-      if (saved) try { const value = JSON.parse(saved) as { script?: string; analysis?: DirectorAnalysis; beats?: DirectorBeat[]; workflow?: ApiWorkflow; workflowName?: string; comfyUrl?: string; job?: typeof job; megapixels?: number; steps?: number; qc?: typeof qc }; if (value.script) setScript(value.script); if (value.analysis) setAnalysis(value.analysis); const savedBeats = value.beats?.length ? value.beats : value.analysis?.beats; if (savedBeats?.length) { setBeats(savedBeats); setSelected(savedBeats[0].id); } if (value.workflow) setWorkflow(value.workflow); if (value.workflowName) setWorkflowName(value.workflowName); if (value.comfyUrl) setComfyUrl(value.comfyUrl); if (value.job) setJob(value.job); if (value.megapixels) setMegapixels(value.megapixels); if (value.steps) setSteps(value.steps); if (value.qc) setQc(value.qc); } catch { /* ignore damaged local draft */ }
+      if (saved) try { const value = JSON.parse(saved) as { script?: string; analysis?: DirectorAnalysis; beats?: DirectorBeat[]; workflow?: ApiWorkflow; workflowName?: string; workflowSource?: 'auto' | 'manual'; comfyUrl?: string; job?: typeof job; megapixels?: number; steps?: number; qc?: typeof qc }; if (value.script) setScript(value.script); if (value.analysis) setAnalysis(value.analysis); const savedBeats = value.beats?.length ? value.beats : value.analysis?.beats; if (savedBeats?.length) { setBeats(savedBeats); setSelected(savedBeats[0].id); } if (value.workflow) setManualWorkflow(value.workflow); if (value.workflowName) setManualWorkflowName(value.workflowName); if (value.workflowSource === 'manual' && value.workflow) setWorkflowSource('manual'); if (value.comfyUrl) setComfyUrl(value.comfyUrl); if (value.job) setJob(value.job); if (value.megapixels) setMegapixels(value.megapixels); if (value.steps) setSteps(value.steps); if (value.qc) setQc(value.qc); } catch { /* ignore damaged local draft */ }
       setStorageReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -84,7 +91,15 @@ export default function Home() {
     const keyName = `h3-director-api-key:${providerConfig.provider}`;
     if (providerConfig.apiKey) window.sessionStorage.setItem(keyName, providerConfig.apiKey); else window.sessionStorage.removeItem(keyName);
   }, [providerConfig, providerReady]);
-  useEffect(() => { if (storageReady) window.localStorage.setItem('h3-director-project', JSON.stringify({ script, analysis, beats, workflow, workflowName, comfyUrl, job, megapixels, steps, qc })); }, [script, analysis, beats, workflow, workflowName, comfyUrl, job, megapixels, steps, qc, storageReady]);
+  useEffect(() => { if (storageReady) window.localStorage.setItem('h3-director-project', JSON.stringify({ script, analysis, beats, workflow: manualWorkflow, workflowName: manualWorkflowName, workflowSource, comfyUrl, job, megapixels, steps, qc })); }, [script, analysis, beats, manualWorkflow, manualWorkflowName, workflowSource, comfyUrl, job, megapixels, steps, qc, storageReady]);
+  useEffect(() => {
+    let active = true;
+    fetch(matchedWorkflow.file).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json() as Promise<ApiWorkflow>;
+    }).then((value) => { if (active) setBuiltInWorkflow({ id: matchedWorkflow.id, value }); }).catch((error) => { if (active) setMessage(`内置工作流加载失败：${error instanceof Error ? error.message : '未知错误'}`); });
+    return () => { active = false; };
+  }, [matchedWorkflow]);
   useEffect(() => {
     if (!job || !['pending', 'running'].includes(job.status)) return;
     const timer = window.setInterval(async () => {
@@ -96,7 +111,18 @@ export default function Home() {
     }, 4000);
     return () => window.clearInterval(timer);
   }, [comfyUrl, job]);
-  async function checkComfy() { setConnection('checking'); try { const response = await fetch(`/api/comfy?url=${encodeURIComponent(comfyUrl)}`); setConnection(response.ok ? 'online' : 'offline'); } catch { setConnection('offline'); } }
+  async function checkComfy() {
+    setConnection('checking'); setCompatibility({ state: 'checking', missing: [] });
+    try {
+      const workflowQuery = workflowSource === 'auto' ? `&workflow=${encodeURIComponent(matchedWorkflow.id)}` : '';
+      const response = await fetch(`/api/comfy?url=${encodeURIComponent(comfyUrl)}${workflowQuery}`);
+      const data = await response.json() as { missingNodes?: string[]; missingModels?: string[] };
+      setConnection(response.ok ? 'online' : 'offline');
+      const missing = [...(data.missingNodes ?? []), ...(data.missingModels ?? [])];
+      setCompatibility(response.ok ? { state: missing.length ? 'incompatible' : 'compatible', missing } : { state: 'idle', missing: [] });
+      if (response.ok) setMessage(workflowSource === 'manual' ? 'ComfyUI 连接正常；手动工作流将在提交时由 ComfyUI 完整校验。' : missing.length ? `ComfyUI 已连接，但当前模板缺少节点或模型：${missing.join('、')}` : `${matchedWorkflow.name} 所需节点与模型检查通过。`);
+    } catch { setConnection('offline'); setCompatibility({ state: 'idle', missing: [] }); }
+  }
   async function analyzeScript() {
     setAnalyzing(true); setMessage(providerConfig.apiKey.trim() ? `正在调用 ${providerPresets[providerConfig.provider].name} · ${providerConfig.model}，请稍候…` : '正在生成离线规则草稿…');
     try {
@@ -108,14 +134,16 @@ export default function Home() {
     } catch (error) { setMessage(error instanceof Error ? error.message : '分析失败'); } finally { setAnalyzing(false); }
   }
   async function importScript(file?: File) { if (!file) return; if (!/\.(md|txt)$/i.test(file.name)) { setMessage('当前支持 .md 和 .txt 剧本文件。'); return; } setScript(await file.text()); setMessage(`已导入 ${file.name}`); }
-  async function importWorkflow(file?: File) { if (!file) return; try { const value = JSON.parse(await file.text()) as ApiWorkflow; const nodes = Object.values(value); if (!nodes.length || !nodes.every((node) => node && typeof node.class_type === 'string')) throw new Error('这不是 ComfyUI API Format JSON'); setWorkflow(value); setWorkflowName(file.name); setMessage(`已绑定工作流 ${file.name}`); } catch (error) { setMessage(error instanceof Error ? error.message : '工作流读取失败'); } }
-  function updateBeat(patch: Partial<DirectorBeat>) { setBeats((items) => items.map((item) => item.id === beat.id ? { ...item, ...patch } : item)); }
-  function newProject() { setScript(''); setAnalysis(null); setBeats(initialBeats); setSelected('01'); setWorkflow(null); setWorkflowName(''); setReferenceFiles([]); setJob(null); setQc('pending'); setQcFrames([]); setMessage('已建立新的本地项目。'); }
+  async function importWorkflow(file?: File) { if (!file) return; try { const value = JSON.parse(await file.text()) as ApiWorkflow; const nodes = Object.values(value); if (!nodes.length || !nodes.every((node) => node && typeof node.class_type === 'string')) throw new Error('这不是 ComfyUI API Format JSON'); setManualWorkflow(value); setManualWorkflowName(file.name); setWorkflowSource('manual'); setCompatibility({ state: 'idle', missing: [] }); setMessage(`已切换为手动工作流：${file.name}`); } catch (error) { setMessage(error instanceof Error ? error.message : '工作流读取失败'); } }
+  function updateBeat(patch: Partial<DirectorBeat>) { setBeats((items) => items.map((item) => item.id === beat.id ? { ...item, ...patch } : item)); if (patch.mode) { setReferenceFiles([]); setCompatibility({ state: 'idle', missing: [] }); } }
+  function newProject() { setScript(''); setAnalysis(null); setBeats(initialBeats); setSelected('01'); setManualWorkflow(null); setManualWorkflowName(''); setWorkflowSource('auto'); setReferenceFiles([]); setJob(null); setQc('pending'); setQcFrames([]); setMessage('已建立新的本地项目。'); }
   function exportProject() { const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), script, analysis, beats, workflowName, comfyUrl, job, qc }, null, 2); const href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = href; anchor.download = `${(analysis?.projectTitle || 'h3-director-project').replace(/[^\w\u4e00-\u9fa5-]/g, '_')}.json`; anchor.click(); URL.revokeObjectURL(href); }
   async function submitBeat() {
     if (!workflow || !beat) return;
     setSubmitting(true); setMessage(''); setQc('pending');
     try {
+      const requiredImages = workflowSource === 'auto' ? matchedWorkflow.requiredImages : Object.values(workflow).filter((node) => node.class_type === 'LoadImage').length;
+      if (referenceFiles.length !== requiredImages) throw new Error(requiredImages ? `当前工作流需要 ${requiredImages} 张图片：${workflowSource === 'auto' ? matchedWorkflow.imageLabel : '请按工作流输入顺序选择'}` : 'T2V 工作流不需要参考图，请清空已选图片');
       let images: string[] = [];
       if (referenceFiles.length) {
         const form = new FormData(); form.append('comfyUrl', comfyUrl); referenceFiles.forEach((file) => form.append('files', file));
@@ -172,13 +200,16 @@ export default function Home() {
       <aside id="beat-director" className="scroll-mt-20 border-l border-white/8 bg-card/35 p-5 lg:p-6">
         <div className="mb-6"><p className="text-xs font-medium text-primary">当前选择 · BEAT {beat.id}</p><h2 className="mt-1 text-xl font-semibold">{beat.title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{beat.summary}</p></div>
         <section className="rounded-2xl border border-white/8 bg-card p-4"><h3 className="text-sm font-medium">Beat 导演数据</h3><div className="mt-3 grid grid-cols-2 gap-3"><label htmlFor="beat-duration" className="text-xs text-muted-foreground">时长<Input id="beat-duration" value={beat.duration} onChange={(event) => updateBeat({ duration: event.target.value })} className="mt-1 border-white/10 bg-background" /></label><label htmlFor="beat-mode" className="text-xs text-muted-foreground">模式<select id="beat-mode" value={beat.mode} onChange={(event) => updateBeat({ mode: event.target.value as DirectorBeat['mode'] })} className="mt-1 h-8 w-full rounded-lg border border-white/10 bg-background px-2 text-foreground"><option>Ref2VA</option><option>FL2VA</option><option>T2V</option></select></label></div><label htmlFor="beat-prompt" className="mt-3 block text-xs text-muted-foreground">H3 提示词</label><Textarea id="beat-prompt" value={beat.prompt || beat.summary} onChange={(event) => updateBeat({ prompt: event.target.value })} className="mt-1 min-h-24 border-white/10 bg-background/60 text-xs leading-5" /></section>
-        <section className="mt-4 rounded-2xl border border-white/8 bg-card p-4"><div className="mb-3 flex items-center gap-2"><Workflow className="size-4 text-primary" /><h3 className="text-sm font-medium">ComfyUI 连接</h3></div><label className="text-xs text-muted-foreground" htmlFor="comfy-url">服务地址</label><Input id="comfy-url" value={comfyUrl} onChange={(e) => setComfyUrl(e.target.value)} className="mt-2 border-white/10 bg-background/60 font-mono text-xs" /><Button onClick={checkComfy} variant="outline" className="mt-3 w-full" disabled={connection === 'checking'}>{connection === 'checking' ? '正在检测…' : connection === 'online' ? <><CheckCircle2 />连接正常</> : connection === 'offline' ? '连接失败，重新检测' : '检测连接与节点'}</Button></section>
+        <section className="mt-4 rounded-2xl border border-white/8 bg-card p-4"><div className="mb-3 flex items-center gap-2"><Workflow className="size-4 text-primary" /><h3 className="text-sm font-medium">ComfyUI 连接</h3></div><label className="text-xs text-muted-foreground" htmlFor="comfy-url">服务地址</label><Input id="comfy-url" value={comfyUrl} onChange={(e) => { setComfyUrl(e.target.value); setConnection('idle'); setCompatibility({ state: 'idle', missing: [] }); }} className="mt-2 border-white/10 bg-background/60 font-mono text-xs" /><Button onClick={checkComfy} variant="outline" className="mt-3 w-full" disabled={connection === 'checking'}>{connection === 'checking' ? '正在检测节点与模型…' : compatibility.state === 'incompatible' ? '环境不完整，重新检测' : compatibility.state === 'compatible' ? <><CheckCircle2 />{workflowSource === 'auto' ? '节点与模型正常' : '连接正常'}</> : connection === 'offline' ? '连接失败，重新检测' : workflowSource === 'auto' ? '检测连接、节点与模型' : '检测 ComfyUI 连接'}</Button>{compatibility.state === 'incompatible' && <p className="mt-2 break-words text-[11px] leading-5 text-amber-200">缺少：{compatibility.missing.join('、')}</p>}</section>
         <section id="comfy-workflow" className="mt-4 scroll-mt-20 rounded-2xl border border-white/8 bg-card p-4">
-          <div className="flex items-center justify-between"><h3 className="text-sm font-medium">执行工作流</h3><Badge variant={workflow ? 'default' : 'outline'}>{workflow ? '已绑定' : '未绑定'}</Badge></div>
+          <div className="flex items-center justify-between"><h3 className="text-sm font-medium">执行工作流</h3><Badge variant={workflow ? 'default' : 'outline'}>{workflowSource === 'auto' ? '自动匹配' : workflow ? '手动覆盖' : '未绑定'}</Badge></div>
+          <div className="mt-3 grid grid-cols-2 gap-2"><Button onClick={() => { setWorkflowSource('auto'); setCompatibility({ state: 'idle', missing: [] }); }} variant={workflowSource === 'auto' ? 'default' : 'outline'} size="sm">自动匹配</Button><Button onClick={() => manualWorkflow && setWorkflowSource('manual')} variant={workflowSource === 'manual' ? 'default' : 'outline'} size="sm" disabled={!manualWorkflow}>手动覆盖</Button></div>
+          <div className="mt-3 rounded-lg border border-white/8 bg-background/50 p-3"><div className="flex items-center justify-between gap-2"><strong className="text-xs font-medium">{workflowName || '工作流加载中…'}</strong><Badge variant="outline" className="text-[10px]">{beat.mode}</Badge></div><p className="mt-1 text-[11px] leading-5 text-muted-foreground">{workflowSource === 'auto' ? matchedWorkflow.description : '使用你导入的 API Format JSON；系统仍会注入当前 Beat 的提示词、参数与图片。'}</p></div>
           <input ref={workflowInput} type="file" accept=".json,application/json" className="hidden" onChange={(event) => importWorkflow(event.target.files?.[0])} />
-          <Button onClick={() => workflowInput.current?.click()} variant="outline" className="mt-3 w-full"><Workflow />{workflowName || '导入 API 工作流 JSON'}</Button>
+          <Button onClick={() => workflowInput.current?.click()} variant="outline" className="mt-3 w-full"><Workflow />导入其他 API 工作流</Button>
           <input ref={imageInput} type="file" accept="image/*" multiple className="hidden" onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []))} />
-          <Button onClick={() => imageInput.current?.click()} variant="ghost" className="mt-1 w-full text-muted-foreground"><ImagePlus />{referenceFiles.length ? `${referenceFiles.length} 张参考图` : '添加参考图（可选）'}</Button>
+          <Button onClick={() => imageInput.current?.click()} variant="ghost" className="mt-1 w-full text-muted-foreground" disabled={workflowSource === 'auto' && matchedWorkflow.requiredImages === 0}><ImagePlus />{referenceFiles.length ? `${referenceFiles.length} 张图片（点击重选）` : workflowSource === 'auto' ? matchedWorkflow.imageLabel : '按节点顺序选择图片'}</Button>
+          {referenceFiles.length > 0 && <Button onClick={() => setReferenceFiles([])} variant="ghost" size="sm" className="w-full text-[11px] text-muted-foreground">清空图片</Button>}
         </section>
         <section className="mt-4 rounded-2xl border border-white/8 bg-card p-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-medium">测试参数</h3><Badge className="bg-amber-300/12 text-amber-200">单 Beat</Badge></div>
@@ -187,11 +218,11 @@ export default function Home() {
             <label htmlFor="steps" className="text-xs text-muted-foreground">采样步数<Input id="steps" type="number" min={4} max={40} value={steps} onChange={(event) => setSteps(Number(event.target.value))} className="mt-1 border-white/10 bg-background" /></label>
           </div>
           <dl className="mt-4 space-y-2 text-sm"><div className="flex justify-between"><dt className="text-muted-foreground">模式</dt><dd>{beat.mode}</dd></div><div className="flex justify-between"><dt className="text-muted-foreground">时长</dt><dd>{beat.duration}</dd></div><div className="flex justify-between"><dt className="text-muted-foreground">任务</dt><dd>{job?.status || '未提交'}</dd></div></dl>
-          <Button onClick={submitBeat} className="mt-5 h-10 w-full" disabled={connection !== 'online' || !workflow || submitting || job?.status === 'pending' || job?.status === 'running'}>{submitting || job?.status === 'pending' || job?.status === 'running' ? <><LoaderCircle className="animate-spin" />生成中…</> : <><Play />测试这个 Beat</>}</Button>
+          <Button onClick={submitBeat} className="mt-5 h-10 w-full" disabled={connection !== 'online' || !workflow || (workflowSource === 'auto' && compatibility.state !== 'compatible') || submitting || job?.status === 'pending' || job?.status === 'running'}>{submitting || job?.status === 'pending' || job?.status === 'running' ? <><LoaderCircle className="animate-spin" />生成中…</> : <><Play />测试这个 Beat</>}</Button>
           <p className="mt-2 text-center text-[11px] text-muted-foreground">只提交一次；运行中禁止重复提交</p>
         </section>
         {videoUrl && <section className="mt-4 rounded-2xl border border-emerald-400/15 bg-card p-4"><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-medium">生成结果</h3><a href={videoUrl} download className="inline-flex h-6 items-center gap-1 rounded-lg border border-white/10 px-2 text-xs"><Download className="size-3" />下载</a></div><video ref={videoRef} src={videoUrl} controls className="aspect-[9/16] max-h-80 w-full rounded-lg bg-black object-contain"><track kind="captions" srcLang="zh" label="暂无字幕" src="data:text/vtt,WEBVTT" /></video><Button onClick={extractQcFrames} variant="outline" size="sm" className="mt-3 w-full"><Aperture />抽取首中尾帧</Button>{qcFrames.length > 0 && <div className="mt-3 grid grid-cols-3 gap-1">{qcFrames.map((frame, index) => <Image unoptimized width={180} height={320} key={frame.slice(-24)} src={frame} alt={`${['首','中','尾'][index]}帧质检图`} className="aspect-[9/16] rounded object-cover" />)}</div>}<div className="mt-3 grid grid-cols-2 gap-2"><Button onClick={() => setQc('passed')} variant={qc === 'passed' ? 'default' : 'outline'} size="sm">质检通过</Button><Button onClick={() => setQc('failed')} variant={qc === 'failed' ? 'destructive' : 'outline'} size="sm">需要重做</Button></div><p className="mt-2 text-center text-[11px] text-muted-foreground">人物 · 空间 · 道具 · 表演 · 台词 · 连续性</p></section>}
-        <section className="mt-4 rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-4"><div className="flex gap-3"><FileText className="mt-0.5 size-4 shrink-0 text-primary" /><div><h3 className="text-sm font-medium">本地闭环</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">导入剧本 → 导演分析 → 绑定已跑通的 API 工作流 → 上传参考图 → 单 Beat 生成 → 播放、下载与质检。</p></div></div></section>
+        <section className="mt-4 rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-4"><div className="flex gap-3"><FileText className="mt-0.5 size-4 shrink-0 text-primary" /><div><h3 className="text-sm font-medium">本地闭环</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">导入剧本 → 导演分析 → 自动匹配 T2V / Ref2VA / FL2VA → 节点预检 → 单 Beat 生成 → 播放、下载与质检。</p></div></div></section>
       </aside>
     </div>
   </main>;

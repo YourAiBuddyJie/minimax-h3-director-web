@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { prepareWorkflow } from '../lib/comfy.ts';
 import { createLocalDraft } from '../lib/director.ts';
 import { providerEndpoint, validateProviderConfig } from '../lib/providers.ts';
+import { matchBuiltInWorkflow } from '../lib/workflow-library.ts';
 
 test('local draft preserves dialogue and chooses a reference mode', () => {
   const result = createLocalDraft('寒夜。沈昭醒来。\n\n萧彻：你终于醒了。');
@@ -40,4 +41,10 @@ test('provider configuration accepts official endpoints and blocks arbitrary hos
   assert.equal(providerEndpoint(config), 'https://api.deepseek.com/chat/completions');
   assert.throws(() => validateProviderConfig({ provider: 'deepseek', apiKey: 'test-key', model: 'x', baseUrl: 'http://127.0.0.1:9999' }));
   assert.throws(() => validateProviderConfig({ provider: 'aliyun', apiKey: 'test-key', model: 'x', baseUrl: 'https://example.com/v1' }));
+});
+
+test('built-in workflow routing follows the director beat mode', () => {
+  assert.equal(matchBuiltInWorkflow('T2V').id, 'h3-t2v');
+  assert.equal(matchBuiltInWorkflow('Ref2VA').requiredImages, 2);
+  assert.equal(matchBuiltInWorkflow('FL2VA').imageLabel, '依次选择首帧、尾帧');
 });
