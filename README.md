@@ -34,9 +34,9 @@ npm run dev
 
 打开 `http://localhost:3000`。
 
-Windows 也可以直接双击 `start-local.cmd`。
+Windows 也可以直接双击 `start-local.cmd`。第一次启动会自动从 `.env.example` 创建一个不会提交到 Git 的 `.env.local`。
 
-如需 AI 导演分析，将 `.env.example` 复制为 `.env.local`，填入自己的 OpenAI API Key 后重启：
+如需 AI 导演分析，在 `.env.local` 中填入自己的 OpenAI API Key 后重启：
 
 ```text
 OPENAI_API_KEY=你的密钥
@@ -44,6 +44,13 @@ OPENAI_MODEL=gpt-5.4-mini
 ```
 
 密钥只由本机服务读取，不会写入浏览器存储或 Git 仓库。请求使用 Responses API 的结构化输出并设置 `store: false`。
+
+页面右上角会显示当前分析引擎：
+
+- `AI · 模型名`：服务已经读取密钥，点击分析会调用 OpenAI。
+- `离线规则`：不调用外部 AI，仍可生成和编辑规则草稿、连接 ComfyUI、测试 Beat。
+
+不要把 API Key 粘贴进网页、剧本、工作流 JSON 或聊天窗口，也不要提交 `.env.local`。修改配置后必须重新启动本地服务。
 
 生产构建：
 

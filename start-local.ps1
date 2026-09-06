@@ -15,7 +15,15 @@ if ($nodeMajor -lt 22) {
 }
 
 if (-not (Test-Path -LiteralPath '.\node_modules')) { npm install }
-if (-not (Test-Path -LiteralPath '.\dist')) { npm run build }
+
+$buildRequired = -not (Test-Path -LiteralPath '.\dist')
+if (-not $buildRequired) {
+  $sourcePaths = @('.\app', '.\components', '.\lib', '.\package.json', '.\package-lock.json', '.\vite.config.ts', '.\next.config.ts')
+  $latestSource = Get-ChildItem -LiteralPath $sourcePaths -Recurse -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+  $latestBuild = Get-ChildItem -LiteralPath '.\dist' -Recurse -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+  $buildRequired = $latestSource.LastWriteTimeUtc -gt $latestBuild.LastWriteTimeUtc
+}
+if ($buildRequired) { npm run build }
 
 $server = Start-Process -FilePath 'npm.cmd' -ArgumentList 'run','start' -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru
 try {
