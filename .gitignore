@@ -33,6 +33,7 @@ yarn-error.log*
 # deployment and generated files
 .vercel
 next-env.d.ts
+tsconfig.tsbuildinfo
 /dist/
 /.wrangler/
 /outputs/

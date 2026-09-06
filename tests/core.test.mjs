@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareWorkflow } from '../lib/comfy.ts';
 import { createLocalDraft } from '../lib/director.ts';
+import { providerEndpoint, validateProviderConfig } from '../lib/providers.ts';
 
 test('local draft preserves dialogue and chooses a reference mode', () => {
   const result = createLocalDraft('寒夜。沈昭醒来。\n\n萧彻：你终于醒了。');
@@ -32,4 +33,11 @@ test('workflow parameters are patched by class type', () => {
 
 test('workflow without prompt or output is rejected', () => {
   assert.throws(() => prepareWorkflow({}, { prompt: 'x', duration: 5, steps: 4, seed: 1, megapixels: 0.4, aspect: '9:16', label: 'x' }));
+});
+
+test('provider configuration accepts official endpoints and blocks arbitrary hosts', () => {
+  const config = validateProviderConfig({ provider: 'deepseek', apiKey: 'test-key', model: 'deepseek-v4-flash', baseUrl: 'https://api.deepseek.com/' });
+  assert.equal(providerEndpoint(config), 'https://api.deepseek.com/chat/completions');
+  assert.throws(() => validateProviderConfig({ provider: 'deepseek', apiKey: 'test-key', model: 'x', baseUrl: 'http://127.0.0.1:9999' }));
+  assert.throws(() => validateProviderConfig({ provider: 'aliyun', apiKey: 'test-key', model: 'x', baseUrl: 'https://example.com/v1' }));
 });

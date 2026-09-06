@@ -14,7 +14,7 @@ export type DirectorAnalysis = {
   spaces: string[];
   conflicts: string[];
   beats: DirectorBeat[];
-  source: 'openai' | 'local-draft';
+  source: 'ai' | 'local-draft';
 };
 
 export function createLocalDraft(script: string): DirectorAnalysis {

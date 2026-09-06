@@ -13,7 +13,9 @@
 - 可选择的 Beat 时间线
 - Ref2VA、FL2VA 和 T2V 模式展示
 - 本地 ComfyUI `/system_stats` 连接检测
-- OpenAI 结构化导演分析；未配置密钥时自动使用本地规则生成草稿
+- 界面化大模型设置，支持 OpenAI、阿里云百炼、豆包火山方舟、Kimi 与 DeepSeek
+- API Key 会话级保存、官方域名白名单与一键连接测试
+- 未配置模型时自动使用本地规则生成草稿
 - Beat 时长、模式和 H3 提示词编辑
 - ComfyUI API Format 工作流导入与浏览器本地保存
 - 参考图上传及 `LoadImage` 顺序绑定
@@ -36,7 +38,25 @@ npm run dev
 
 Windows 也可以直接双击 `start-local.cmd`。第一次启动会自动从 `.env.example` 创建一个不会提交到 Git 的 `.env.local`。
 
-如需 AI 导演分析，在 `.env.local` 中填入自己的 OpenAI API Key 后重启：
+### 界面配置（推荐）
+
+点击页面右上角“配置大模型”，选择供应商并填写 API Key、模型名称和兼容接口地址。点击“测试连接”会发送一条极短请求；成功后点击“保存并使用”。支持：
+
+| 供应商 | 默认模型 | 默认接口 |
+| --- | --- | --- |
+| OpenAI | `gpt-5.4-mini` | `https://api.openai.com/v1` |
+| 阿里云百炼 | `qwen3.8-max` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| 豆包·火山方舟 | `doubao-seed-2-0-lite-260215` | `https://ark.cn-beijing.volces.com/api/v3` |
+| Kimi | `kimi-k2.6` | `https://api.moonshot.cn/v1` |
+| DeepSeek | `deepseek-v4-flash` | `https://api.deepseek.com` |
+
+供应商可能更新模型名，界面允许直接修改。阿里云业务空间专属域名也受支持；其他供应商只允许各自官方 API 域名，避免把密钥误发到任意服务器。
+
+界面输入的 API Key 只保存在当前标签页的 `sessionStorage`，关闭标签页后清除；模型名、供应商和接口地址会保存在本机，密钥不会进入项目草稿和导出文件。
+
+### 服务端 OpenAI 配置（可选）
+
+也可以在 `.env.local` 中填入 OpenAI API Key 后重启：
 
 ```text
 OPENAI_API_KEY=你的密钥
@@ -47,10 +67,10 @@ OPENAI_MODEL=gpt-5.4-mini
 
 页面右上角会显示当前分析引擎：
 
-- `AI · 模型名`：服务已经读取密钥，点击分析会调用 OpenAI。
+- `供应商 · 模型名`：界面会话或服务端已经配置模型。
 - `离线规则`：不调用外部 AI，仍可生成和编辑规则草稿、连接 ComfyUI、测试 Beat。
 
-不要把 API Key 粘贴进网页、剧本、工作流 JSON 或聊天窗口，也不要提交 `.env.local`。修改配置后必须重新启动本地服务。
+不要把 API Key 粘贴进剧本、工作流 JSON 或聊天窗口，也不要提交 `.env.local`。只有修改 `.env.local` 时才需要重新启动；界面配置会立即生效。
 
 生产构建：
 
