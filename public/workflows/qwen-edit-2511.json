@@ -1,0 +1,18 @@
+{
+  "1": { "class_type": "UnetLoaderGGUF", "inputs": { "unet_name": "qwen-image-edit-2511-Q4_K_M.gguf" } },
+  "6": { "class_type": "LoraLoaderModelOnly", "inputs": { "model": ["1", 0], "lora_name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors", "strength_model": 1 } },
+  "2": { "class_type": "ModelSamplingAuraFlow", "inputs": { "model": ["6", 0], "shift": 3.1 } },
+  "3": { "class_type": "CFGNorm", "inputs": { "model": ["2", 0], "strength": 1, "pre_cfg": false } },
+  "4": { "class_type": "CLIPLoader", "inputs": { "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "type": "qwen_image", "device": "default" } },
+  "5": { "class_type": "VAELoader", "inputs": { "vae_name": "qwen_image_vae.safetensors" } },
+  "20": { "class_type": "LoadImage", "inputs": { "image": "reference.png" } },
+  "30": { "class_type": "FluxKontextImageScale", "inputs": { "image": ["20", 0] } },
+  "31": { "class_type": "VAEEncode", "inputs": { "pixels": ["30", 0], "vae": ["5", 0] } },
+  "40": { "class_type": "TextEncodeQwenImageEditPlus", "inputs": { "clip": ["4", 0], "vae": ["5", 0], "image1": ["30", 0], "prompt": "保持参考身份与空间，按描述编辑画面" } },
+  "41": { "class_type": "TextEncodeQwenImageEditPlus", "inputs": { "clip": ["4", 0], "vae": ["5", 0], "image1": ["30", 0], "prompt": "低质量，身份漂移，错误肢体，文字，水印" } },
+  "42": { "class_type": "FluxKontextMultiReferenceLatentMethod", "inputs": { "conditioning": ["40", 0], "reference_latents_method": "index_timestep_zero" } },
+  "43": { "class_type": "FluxKontextMultiReferenceLatentMethod", "inputs": { "conditioning": ["41", 0], "reference_latents_method": "index_timestep_zero" } },
+  "50": { "class_type": "KSampler", "inputs": { "model": ["3", 0], "seed": 1, "steps": 4, "cfg": 4, "sampler_name": "euler", "scheduler": "simple", "positive": ["42", 0], "negative": ["43", 0], "latent_image": ["31", 0], "denoise": 1 } },
+  "60": { "class_type": "VAEDecode", "inputs": { "samples": ["50", 0], "vae": ["5", 0] } },
+  "61": { "class_type": "SaveImage", "inputs": { "filename_prefix": "h3-director-web/assets/qwen-edit-test", "images": ["60", 0] } }
+}

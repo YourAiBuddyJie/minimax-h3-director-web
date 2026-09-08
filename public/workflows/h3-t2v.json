@@ -97,7 +97,8 @@
         0
       ],
       "lora_name": "minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
-      "strength": 1
+      "strength": 1,
+      "low_vram": true
     }
   },
   "130": {
@@ -165,14 +166,6 @@
       "denoise": 1
     }
   },
-  "116": {
-    "class_type": "MarkdownNote",
-    "inputs": {}
-  },
-  "117": {
-    "class_type": "MarkdownNote",
-    "inputs": {}
-  },
   "133": {
     "class_type": "PrimitiveFloat",
     "inputs": {
@@ -188,10 +181,6 @@
       ],
       "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
     }
-  },
-  "118": {
-    "class_type": "MarkdownNote",
-    "inputs": {}
   },
   "115": {
     "class_type": "ResolutionSelector",
