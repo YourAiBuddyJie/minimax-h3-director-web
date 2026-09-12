@@ -41,7 +41,7 @@ export const builtInWorkflows: BuiltInWorkflow[] = [
     requiredNodes: ['MiniMaxH3ReferenceToVideo', 'LoraLoaderBypassModelOnly'],
     requiredModels: [
       { classType: 'UNETLoader', input: 'unet_name', filename: 'minimax_h3_ref2va_pruned_int8_convrot.safetensors' },
-      { classType: 'CLIPLoader', input: 'clip_name', filename: 'qwen3vl_32b_minimax_h3_int8_convrot_uncensored-by-linjian257.safetensors' },
+      { classType: 'CLIPLoader', input: 'clip_name', filename: 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors' },
       { classType: 'VAELoader', input: 'vae_name', filename: 'minimax_h3_video_vae_fp16.safetensors' },
       { classType: 'VAELoader', input: 'vae_name', filename: 'minimax_h3_audio_vae_fp32.safetensors' },
       { classType: 'LoraLoaderBypassModelOnly', input: 'lora_name', filename: 'minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors' },

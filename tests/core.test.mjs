@@ -204,4 +204,9 @@ test('built-in API workflows contain no presentation-only MarkdownNote nodes', (
   const t2v = JSON.parse(readFileSync(new URL('../public/workflows/h3-t2v.json', import.meta.url), 'utf8'));
   const turboLoader = Object.values(t2v).find((node) => node.class_type === 'MiniMaxH3TurboLoRA');
   assert.equal(turboLoader?.inputs?.low_vram, true, '12 GB local profile must enable low_vram');
+
+  const ref2va = JSON.parse(readFileSync(new URL('../public/workflows/h3-ref2va.json', import.meta.url), 'utf8'));
+  assert.equal(Object.values(ref2va).some((node) => node.class_type === 'ModelPatchTorchSettings'), false, 'Ref2VA must not depend on the optional torch settings node');
+  assert.deepEqual(ref2va['124'].inputs.model, ['192', 0]);
+  assert.deepEqual(ref2va['126'].inputs.model, ['192', 0]);
 });
