@@ -4,7 +4,7 @@ import { buildH3VideoPrompt } from './h3-video-prompt.ts';
 import { reviewBeat } from './director-review.ts';
 
 export type TimelineImage = { id: string; title: string; kind?: import('./director.ts').ReferenceAssetKind; file: string };
-export type DirectorOptions = { steps: number; seed: number; megapixels: number; aspect: '16:9' | '9:16' | '1:1'; label: string; acceleration?: 'standard' | 'turbo8' };
+export type DirectorOptions = { steps: number; seed: number; megapixels: number; aspect: '16:9' | '9:16' | '1:1'; label: string; checkpoint?: boolean; acceleration?: 'standard' | 'turbo8' };
 
 // Same 17k+5 grid and ceiling policy as the installed Director duration.py.
 export function h3Timing(seconds: number) {
@@ -76,6 +76,11 @@ export function compileDirectorTimeline(beats: DirectorBeat[], images: Record<st
     workflow['5'].class_type = 'MiniMaxH3DirectorWeb';
     workflow['7'] = { class_type: 'UNETLoader', inputs: { unet_name: 'minimax_h3_ref2va_pruned_int8_convrot.safetensors', weight_dtype: 'default' } };
     workflow['5'].inputs!.ref_model = ['7', 0];
+  }
+  if (options.checkpoint) {
+    if (beats.length !== 1) throw new Error('逐段验收每次只能提交一个分镜');
+    workflow['9'] = { class_type: 'ImageFromBatch', inputs: { image: ['5', 1], batch_index: start - 1, length: 1 } };
+    workflow['10'] = { class_type: 'SaveImage', inputs: { images: ['9', 0], filename_prefix: `h3-director-web/checkpoints/${options.label.replace(/[^\w\u4e00-\u9fa5-]/g, '_').slice(0, 80)}-last` } };
   }
   return { timeline, workflow, rows, totalFrames: start, totalSeconds: start / 24 };
 }

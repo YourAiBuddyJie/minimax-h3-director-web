@@ -51,5 +51,7 @@ class MiniMaxH3DirectorWeb:
         return result
 
 
-NODE_CLASS_MAPPINGS = {'MiniMaxH3DirectorWeb': MiniMaxH3DirectorWeb}
+from .checkpoint_join import MiniMaxH3ReviewedJoin
+
+NODE_CLASS_MAPPINGS = {'MiniMaxH3DirectorWeb': MiniMaxH3DirectorWeb, 'MiniMaxH3ReviewedJoin': MiniMaxH3ReviewedJoin}
 NODE_DISPLAY_NAME_MAPPINGS = {'MiniMaxH3DirectorWeb': 'MiniMax H3 Director · Web Reference Adapter'}

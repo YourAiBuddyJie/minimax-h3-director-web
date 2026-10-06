@@ -14,6 +14,7 @@ export type DirectorBeat = {
   startState?: string;
   endState?: string;
   reviewNotes?: string[];
+  visualStyle?: string;
 };
 
 export type ReferenceAssetKind = 'identity' | 'location' | 'prop' | 'costume' | 'body_state' | 'first_frame' | 'last_frame';

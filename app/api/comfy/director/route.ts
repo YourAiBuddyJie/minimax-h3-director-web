@@ -11,8 +11,9 @@ async function directorFetch(url: URL, init: RequestInit, stage: string) {
   catch { throw new Error(stage + '失败：无法连接 ' + url.origin + '。请确认对应 ComfyUI 服务已启动，且地址、端口正确。'); }
 }
 
-type AssetInput = { id: string; title: string; kind: TimelineImage['kind']; file: OutputFile };
+type AssetInput = { id: string; title: string; kind: TimelineImage['kind']; file: OutputFile; sourceUrl?: string };
 export async function POST(request: Request) {
+  let submitting = false;
   try {
     const body = await request.json() as { sourceUrl: string; directorUrl: string; beats: DirectorBeat[]; assets: AssetInput[]; options: DirectorOptions; dryRun?: boolean };
     const source = localComfyBase(body.sourceUrl);
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     if (missing.length) return NextResponse.json({ error: `Director 环境不完整：${missing.join('、')}`, missing }, { status: 422 });
     const downloaded: Array<{ asset: AssetInput; bytes: ArrayBuffer; mime: string; filename: string }> = [];
     for (const asset of inputAssets) {
-      const view = new URL('/view', source);
+      const view = new URL('/view', asset.sourceUrl ? localComfyBase(asset.sourceUrl) : source);
       view.searchParams.set('filename', asset.file.filename!); view.searchParams.set('subfolder', asset.file.subfolder || ''); view.searchParams.set('type', asset.file.type || 'output');
       const response = await directorFetch(view, { signal: AbortSignal.timeout(15000), cache: 'no-store' }, '读取素材 ' + asset.title);
       if (!response.ok) throw new Error(`素材不可读取：${asset.title}（HTTP ${response.status}）`);
@@ -59,9 +60,11 @@ export async function POST(request: Request) {
     const compiled = compileDirectorTimeline(body.beats, images, body.options);
     const finalMissing = checkDirectorEnvironment(compiled.workflow, info);
     if (finalMissing.length) throw new Error(finalMissing.join('、'));
+    submitting = true;
     const response = await directorFetch(new URL('/prompt', target), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: compiled.workflow }), signal: AbortSignal.timeout(30000) }, '提交任务（若连接中断，请先查看 Director 队列，避免重复提交）');
     const result = await response.json() as { prompt_id?: string; error?: { message?: string; details?: string }; node_errors?: unknown };
+    submitting = false;
     if (!response.ok || !result.prompt_id) return NextResponse.json({ error: result.error?.message || result.error?.details || 'ComfyUI 拒绝了 Director 工作流', nodeErrors: result.node_errors }, { status: 422 });
     return NextResponse.json({ promptId: result.prompt_id, timeline: compiled.timeline, rows: compiled.rows, totalSeconds: compiled.totalSeconds });
-  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Director 请求失败' }, { status: 400 }); }
+  } catch (error) { return NextResponse.json({ uncertain: submitting, error: error instanceof Error ? error.message : 'Director 请求失败' }, { status: 400 }); }
 }
