@@ -14,8 +14,13 @@ export async function POST(request: Request) {
     if ((body.images?.length ?? 0) !== imageInputs) throw new Error(imageInputs ? `该工作流需要 ${imageInputs} 张图片` : '该工作流不接受参考图');
     const prompt = prepareWorkflow(body.workflow, body);
     const response = await fetch(new URL('/prompt', base), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
-    const result = await response.json() as { prompt_id?: string; node_errors?: unknown };
-    if (!response.ok || !result.prompt_id) return NextResponse.json({ error: 'ComfyUI 拒绝了工作流', nodeErrors: result.node_errors ?? result }, { status: 422 });
+    const result = await response.json() as { prompt_id?: string; node_errors?: unknown; error?: { type?: string; message?: string; details?: string; extra_info?: { node_id?: string; class_type?: string; node_title?: string } } };
+    if (!response.ok || !result.prompt_id) {
+      const detail = result.error?.message || result.error?.details || 'ComfyUI 未返回具体原因';
+      const node = result.error?.extra_info;
+      const nodeText = node?.class_type ? `（节点 ${node.node_id || '?'}：${node.class_type}）` : '';
+      return NextResponse.json({ error: `ComfyUI 拒绝了工作流：${detail}${nodeText}`, nodeErrors: result.node_errors, comfyError: result.error }, { status: 422 });
+    }
     return NextResponse.json({ promptId: result.prompt_id });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : '提交失败' }, { status: 400 }); }
 }
