@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createLocalDraft } from '../lib/director.ts';
 import { normalizeDirectorAnalysis } from '../lib/director-analysis.ts';
 import { compileDirectorTimeline, h3Timing } from '../lib/director-timeline.ts';
-import { reviewBeat, reviewAnalysis } from '../lib/director-review.ts';
+import { dialogueLines, reviewBeat, reviewAnalysis } from '../lib/director-review.ts';
 import { buildH3VideoPrompt } from '../lib/h3-video-prompt.ts';
 import { checkDirectorEnvironment } from '../lib/director-preflight.ts';
 
@@ -42,6 +42,14 @@ test('dialogue review detects omissions but accepts original words inside H3 d t
   const beat = { ...base, sourceText: '女人说：“还是家里暖和。”', prompt: 'The woman (S1) says <d>[Chinese] 还是家里暖和。</d>' };
   assert.equal(reviewBeat(beat).filter((i) => i.severity === 'error').length, 0);
   assert.ok(reviewBeat({ ...beat, prompt: 'The woman smiles.' }).some((i) => i.message.includes('对白')));
+});
+test('state directions do not become dialogue blockers while both speakers remain checked', () => {
+  const sourceText = '开始状态：两人站在露台。\n林晚：你在等谁？\n顾川：等你。\n结束状态：两人对视，双手仍自然垂在身侧。';
+  assert.deepEqual(dialogueLines(sourceText), ['你在等谁？', '等你。']);
+  const beat = { ...base, duration: '10s', sourceText, prompt: 'They look at each other. S2 says <d>[Chinese] 你在等谁？</d> S1 says <d>[Chinese] 等你。</d>' };
+  assert.equal(reviewBeat(beat).filter((issue) => issue.severity === 'error').length, 0);
+  assert.ok(reviewBeat({ ...beat, prompt: 'S1 says <d>[Chinese] 等你。</d>' }).some((issue) => issue.severity === 'error' && issue.message.includes('你在等谁')));
+  assert.doesNotThrow(() => compileDirectorTimeline([beat], {}, options));
 });
 test('local import retains more than twelve shots and does not force every action into FL2VA', () => {
   const script = Array.from({ length: 15 }, (_, index) => `【镜头 ${index + 1}】\n女人站起，走到门边。`).join('\n\n');

@@ -3,8 +3,10 @@ import type { DirectorAnalysis, DirectorBeat } from './director.ts';
 export type ReviewIssue = { severity: 'error' | 'warning'; message: string; beatId?: string };
 export function dialogueLines(text: string): string[] {
   const quoted = [...text.matchAll(/[“「『"]([^”」』"\n]+)[”」』"]/g)].map((m) => m[1]);
-  const spoken = [...text.matchAll(/^[ \t]*(?:\*\*)?[\p{Script=Han}A-Za-z·]{1,12}(?:\*\*)?(?:[（(][^）)\n]*[）)])?[：:]([^\n]+)/gmu)]
-    .map((m) => m[1].replace(/\*\*/g, '').trim()).filter((line) => !line.includes('【') && !/[“「『"]/.test(line));
+  const metadataLabels = new Set(['开始状态', '起始状态', '结束状态', '起止状态', '场景', '场景与构图', '风格', '人物', '时长', '总时长', '目标时长', '构图', '镜头', '声音', '音效', '提示词', '模式', '模式理由', '接续', '结束画面', '起始画面']);
+  const spoken = [...text.matchAll(/^[ \t]*(?:\*\*)?([\p{Script=Han}A-Za-z·]{1,12})(?:\*\*)?(?:[（(][^）)\n]*[）)])?[：:]([^\n]+)/gmu)]
+    .filter((m) => !metadataLabels.has(m[1]))
+    .map((m) => m[2].replace(/\*\*/g, '').trim()).filter((line) => !line.includes('【') && !/[“「『"]/.test(line));
   return [...new Set([...quoted, ...spoken])];
 }
 
