@@ -1,38 +1,41 @@
-# 本地参考图制作
+# 本地参考图制作：Qwen Image 2.1
 
-模型与 ComfyUI 独立安装，不包含在导演台发布包中。导演台只内置工作流 JSON，通过本机 HTTP 接口提交任务。
+本地人物、场景母版和所有派生分镜图统一使用 Qwen Image 2.1。云端百炼、Seedream 保持独立。
 
-## 使用顺序
+## 准备
 
-1. 启动 ComfyUI，在导演台填写本机地址，点击“检测连接、节点与模型”。生图和视频环境分别检查。
-2. 导入剧本并分析。配置大模型 API 才能做语义导演分析；离线结果只是规则草稿。
-3. 在“参考图素材中心”检查提示词。先建立并采用人物、场景母版，再生成派生图。派生图会自动运行 FLUX.2 动作构图和 Qwen 2511 一致性精修两个阶段。
-4. 核对人物、服装、道具、身体状态、单一连续空间，点击“采用”。未采用素材不会送给视频工作流。
-5. 选择 Beat，在“参考图绑定”中指定图片。FL2VA 输入顺序是首帧、尾帧；Ref2VA 当前内置模板支持两张参考图。不要为多个角色随意省略关键参考图。
-6. 先做单 Beat 低分辨率视频测试，再抽帧、播放并验收。此版本不会自动批量生成视频。
+更新 ComfyUI 至支持 `TextEncodeQwenImage21` 和 `QwenImage21Cache` 的版本，将模型放入对应目录：
 
-剧本分析返回明确的素材 ID 时可自动绑定；旧项目或没有明确对应关系时，必须手动选择，系统不会猜测全局第一张人物图就是当前人物。手动上传会覆盖素材选择，切换 Beat 后清除手动图片。
+- `models/diffusion_models/qwen_image_2.1_int8_convrot.safetensors`
+- `models/text_encoders/qwen3vl_8b_int8_convrot.safetensors`
+- `models/vae/qwen_image_2.1_vae_bf16.safetensors`
 
-## 模型要求
+[Comfy-Org 官方模型包](https://huggingface.co/Comfy-Org/Qwen-Image-2.1)
+[官方编辑模板](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_qwen_image_2_1_image_edit.json)
 
-- diffusion_models/z_image_turbo_nvfp4.safetensors
-- text_encoders/qwen_3_4b_fp4_mixed.safetensors
-- vae/ae.safetensors
-- diffusion_models/flux-2-klein-4b-fp8.safetensors
-- vae/flux2-vae.safetensors
-- diffusion_models/qwen-image-edit-2511-Q4_K_M.gguf
-- text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
-- vae/qwen_image_vae.safetensors
-- loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
+无需旧版 Z-Image、FLUX.2、Qwen Edit 2511 或其 Lightning LoRA。导演台不会自动下载模型。
 
-人物身份母版必须是单人单画面定妆照，禁止四宫格、设定板、拼贴或多视角合成。基础母版使用 Z-Image；派生图中 FLUX.2 Klein 4B 只生成动作构图草图，Qwen-Image-Edit-2511 Q4_K_M 配合官方 Lightning 4 步 LoRA 输出最终一致性图片。GGUF 模型需要 ComfyUI-GGUF 的 `UnetLoaderGGUF` 节点。导演台的环境检测会同时核对三套模板。
+## 使用
 
-## 当前限制
+1. 启动 ComfyUI，在导演台检测本地模型与节点。
+2. 先生成并采用单人单画面的身份母版和单一连续空间母版。
+3. 生成派生图时，一次输入已采用的角色、场景、道具和状态图，最多 10 张；超出时明确报错，不截断本地参考素材。
+4. 首帧或状态合成图优先作为编辑画布，其次是场景母版；提示词通过 `<image1>` 等编号说明职责。编辑输出沿用第一张图的画幅，以约 1024×1024 的像素预算对齐到 32 倍数；文生图按素材宽高归一化。
+5. 默认 25 步、Euler/simple、CFG 1，沿用官方 ComfyUI 模板起点。CFG 1 不单独应用负向引导，因此画面约束也写入正向描述；未沿用旧版 4 步 LoRA。
+6. 打开结果核对身份、服装、空间、手部、道具和首尾状态，验收后采用。
 
-- 双阶段流程会把动作构图草图与人物/场景母版一起送入最终精修，但仍不能保证绝对一致。必须对照原图人工验收；包含背景人物在内的动作差异也需要检查。
-- 提示词修改后取消原来的采用状态，但预览仍是旧图；请重做后再采用。
-- 项目数据保存在当前浏览器；图片保存在 ComfyUI output。导出项目 JSON 不会打包图片，迁移时需另行复制。
-- 任务丢失、ComfyUI 重启或历史被清空会显示失败，不会偷偷重复提交。提交中刷新页面后，先检查 ComfyUI 队列再手动重试。
-- 本轮验证生图提交、结果查询和预览，以及绑定规则；未执行新的完整视频生成测试。
+## 保存和迁移
 
-开发验证：`npm test`、`npm run lint`、`npx tsc --noEmit`、`npm run build`。运行中的本地服务可用 `node scripts/smoke-image.mjs` 做一次真实生图接口测试（占用本机 GPU，生成一张测试图片）。
+已有采用图片保留；旧版尚未结束的两阶段任务不会自动进入精修，需查看 ComfyUI 队列后手动重做。
+项目数据保存在浏览器，图片保存在 ComfyUI；导出 JSON 不打包图片。
+
+## 验证
+
+开发检查：`npm test`、`npm run lint`、`npx tsc --noEmit`、`npm run build`。
+启动两个服务后，用 `node scripts/smoke-image.mjs` 做一次真实文生图测试；编辑测试通过 `node --experimental-strip-types scripts/smoke-image-edit.mjs "参考图路径 [output]"` 指定 1–10 张 ComfyUI 素材。
+
+本次接入时本机 8188 未启动，尚未验证真实出图、12GB 显存峰值和耗时。模型检测通过不等于推理验收通过。
+
+## 提示词校准
+
+本地文生图与编辑指令已按 Qwen 2.1 官方 PE 指南分开适配，见 [校准依据、示例与限制](QWEN_IMAGE_PROMPT_CALIBRATION.md)。已有采用图和缓存描述不自动改写。

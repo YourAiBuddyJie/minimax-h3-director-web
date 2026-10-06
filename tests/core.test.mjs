@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeImageCanvas, prepareFlux2ImageEdit, prepareImageWorkflow, prepareQwenImageEdit, prepareWorkflow } from '../lib/comfy.ts';
+import { normalizeImageCanvas, prepareQwen21Workflow, prepareWorkflow } from '../lib/comfy.ts';
 import { createLocalDraft, resolveBeatDurations } from '../lib/director.ts';
 import { providerEndpoint, validateProviderConfig } from '../lib/providers.ts';
 import { isAliyunImageEndpoint, isVolcengineImageEndpoint } from '../lib/image-providers.ts';
@@ -76,7 +76,7 @@ test('markdown screenplay parsing rejects shot labels and grounds image prompts 
   assert.equal(result.spaces.length, 1);
   assert.equal(result.beats.length, 2);
   assert.ok(result.referenceAssets[0].prompt.includes('衣衫湿透'));
-  assert.ok(result.referenceAssets[0].prompt.includes('不得改成现代西装'));
+  assert.ok(result.referenceAssets[0].prompt.includes('服装与风格服从剧本'));
   assert.equal(result.referenceAssets.some((asset) => asset.title.startsWith('特写')), false);
 });
 
@@ -98,6 +98,23 @@ test('workflow parameters are patched by class type', () => {
   assert.equal(result['5'].inputs.megapixels, 0.7);
   assert.equal(result['6'].inputs.image, 'new.png');
   assert.equal(result['7'].inputs.filename_prefix, 'h3-director-web/beat-01');
+});
+
+test('uploaded image order matches LoadImage order and prompt picture roles', () => {
+  const workflow = prepareWorkflow({
+    '1': { class_type: 'PrimitiveStringMultiline', inputs: { value: 'old' } },
+    '2': { class_type: 'LoadImage', inputs: { image: 'old-1.png' } },
+    '3': { class_type: 'LoadImage', inputs: { image: 'old-2.png' } },
+    '4': { class_type: 'SaveVideo', inputs: { filename_prefix: 'old' } },
+  }, { prompt: 'new', duration: 6, steps: 20, seed: 42, megapixels: 0.4, aspect: '9:16', label: 'B01', images: ['uploaded-first.png', 'uploaded-second.png'] });
+  assert.equal(workflow['2'].inputs.image, 'uploaded-first.png');
+  assert.equal(workflow['3'].inputs.image, 'uploaded-second.png');
+  const prompt = buildH3VideoPrompt({ id: 'B01', mode: 'Ref2VA', duration: '6.0s', prompt: '两人相见' }, [
+    { id: 'uploaded-image-1', title: 'first.png', role: 'the first character identity' },
+    { id: 'uploaded-image-2', title: 'second.png', role: 'the second character costume' },
+  ]);
+  assert.match(prompt, /<Picture 1> \(@uploaded-image-1, input image 1, “first\.png”\) and provides the first character identity/);
+  assert.match(prompt, /<Picture 2> \(@uploaded-image-2, input image 2, “second\.png”\) and provides the second character costume/);
 });
 
 test('workflow without prompt or output is rejected', () => {
@@ -128,51 +145,41 @@ test('built-in workflow routing follows the director beat mode', () => {
   assert.equal(matchBuiltInWorkflow('T2V').id, 'h3-t2v');
   assert.equal(matchBuiltInWorkflow('Ref2VA').requiredImages, 2);
   assert.equal(matchBuiltInWorkflow('FL2VA').imageLabel, '依次选择首帧、尾帧');
-  assert.equal(matchBuiltInWorkflow('IMAGE_T2I').id, 'z-image-t2i');
+  assert.equal(matchBuiltInWorkflow('IMAGE_T2I').id, 'qwen-image-21-t2i');
 });
 
-test('image workflow patches prompts, canvas, seed, steps and output by graph links', () => {
-  const source = {
-    '1': { class_type: 'KSampler', inputs: { seed: 1, steps: 9, positive: ['2', 0], negative: ['3', 0] } },
-    '2': { class_type: 'CLIPTextEncode', inputs: { text: 'old positive' } },
-    '3': { class_type: 'CLIPTextEncode', inputs: { text: 'old negative' } },
-    '4': { class_type: 'EmptySD3LatentImage', inputs: { width: 512, height: 512, batch_size: 2 } },
-    '5': { class_type: 'SaveImage', inputs: { filename_prefix: 'old' } },
-  };
-  const result = prepareImageWorkflow(source, { prompt: '角色母版', negativePrompt: '不要文字', width: 768, height: 1344, steps: 8, seed: 42, label: 'character-1' });
-  assert.equal(result['2'].inputs.text, '角色母版');
-  assert.equal(result['3'].inputs.text, '不要文字');
-  assert.equal(result['4'].inputs.width, 768);
-  assert.equal(result['4'].inputs.height, 1344);
-  assert.equal(result['1'].inputs.seed, 42);
-  assert.equal(result['5'].inputs.filename_prefix, 'h3-director-web/assets/character-1');
+test('Qwen 2.1 text generation uses native conditioning, sampler and requested canvas', () => {
+  const graph = prepareQwen21Workflow({ prompt: '角色母版', negativePrompt: '文字', width: 768, height: 1344, steps: 25, seed: 42, label: 'character' });
+  assert.equal(graph['5'].class_type, 'TextEncodeQwenImage21');
+  assert.match(graph['5'].inputs.prompt, /角色母版/);
+  assert.equal(graph['6'].inputs.width, 768);
+  assert.deepEqual(graph['7'].inputs.latent_image, ['6', 0]);
+  assert.equal(graph['7'].inputs.seed, 42);
+  assert.equal(graph['7'].inputs.cfg, 1);
+  assert.equal(graph['7'].inputs.steps, 25);
+  assert.equal(graph['1'].inputs.unet_name, 'qwen_image_2.1_int8_convrot.safetensors');
 });
 
-test('AI-proposed image sizes are normalized to the Z-Image canvas contract', () => {
+test('AI-proposed image sizes are normalized to the local image canvas contract', () => {
   assert.deepEqual(normalizeImageCanvas(1080, 1920), { width: 864, height: 1536 });
   assert.deepEqual(normalizeImageCanvas(1024, 1024), { width: 1024, height: 1024 });
   assert.deepEqual(normalizeImageCanvas(Number.NaN, 0), { width: 768, height: 1344 });
 });
 
-test('Flux2 edit workflow chains approved reference images into both conditions', () => {
-  const graph = prepareFlux2ImageEdit({ prompt: '保持人物身份', width: 768, height: 1344, seed: 42, label: 'beat-1', images: ['a.png', 'b.png'] });
-  assert.equal(graph['1'].inputs.unet_name, 'flux-2-klein-4b-fp8.safetensors');
-  assert.equal(graph['20'].inputs.image, 'a.png');
-  assert.equal(graph['21'].inputs.image, 'b.png');
-  assert.deepEqual(graph['10'].inputs.positive, ['51', 0]);
-  assert.deepEqual(graph['10'].inputs.negative, ['61', 0]);
-});
-
-test('Qwen 2511 edit uses the scene canvas plus multiple identity references', () => {
-  const graph = prepareQwenImageEdit({ prompt: '保持两人身份与山洞空间', negativePrompt: '错误肢体', seed: 42, label: 'beat-1', images: ['cave.png', 'person-a.png', 'person-b.png'] });
-  assert.equal(graph['1'].class_type, 'UnetLoaderGGUF');
-  assert.equal(graph['1'].inputs.unet_name, 'qwen-image-edit-2511-Q4_K_M.gguf');
-  assert.deepEqual(graph['40'].inputs.image1, ['30', 0]);
-  assert.deepEqual(graph['40'].inputs.image2, ['21', 0]);
-  assert.deepEqual(graph['40'].inputs.image3, ['22', 0]);
-  assert.deepEqual(graph['50'].inputs.latent_image, ['31', 0]);
-  assert.equal(graph['50'].inputs.steps, 4);
-  assert.equal(graph['6'].inputs.lora_name, 'Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors');
+test('Qwen 2.1 editing preserves ten ordered references and uses the first reference latent', () => {
+  const options = { prompt: '两人山洞', width: 768, height: 1344, steps: 40, seed: 42, label: 'edit', images: Array.from({ length: 10 }, (_, i) => `ref${i}.png`) };
+  const graph = prepareQwen21Workflow(options);
+  assert.deepEqual(graph['7'].inputs.latent_image, ['5', 2]);
+  assert.equal(graph['6'], undefined);
+  options.images.forEach((image, i) => {
+    assert.deepEqual(graph['5'].inputs[`images.image_${i + 1}`], [String(20 + i), 0]);
+    assert.equal(graph[String(20 + i)].inputs.image, image);
+  });
+  assert.throws(() => prepareQwen21Workflow({ ...options, images: [...options.images, 'overflow.png'] }), /10/);
+  assert.throws(() => prepareQwen21Workflow({ ...options, steps: 0 }));
+  for (const node of Object.values(graph)) for (const input of Object.values(node.inputs)) {
+    if (Array.isArray(input)) assert.ok(graph[input[0]], `missing linked node ${input[0]}`);
+  }
 });
 
 test('derived asset sources prefer explicit approved anchors and last-frame continuity', () => {
@@ -190,13 +197,13 @@ test('derived asset sources prefer explicit approved anchors and last-frame cont
   assert.equal(assetSourceIssue({ id: 'wet', title: '云初中蛊湿衣状态', kind: 'body_state', beatId: '1', prompt: '云初在山洞石台', status: 'draft', sourceAssetIds: ['location'] }, inferred, assets), '');
   const carryTarget = { id: 'carry', title: '陆承渊横抱云初', kind: 'first_frame', beatId: '4', prompt: '陆承渊横抱中蛊湿衣的云初', status: 'draft', sourceAssetIds: ['poisoned', 'identity-2'] };
   const carrySources = resolveAssetSources(carryTarget, assets);
-  assert.deepEqual(carrySources.map((asset) => asset.id), ['poisoned', 'identity', 'identity-2']);
+  assert.deepEqual(carrySources.map((asset) => asset.id), ['poisoned', 'identity', 'identity-2', 'location']);
   assert.equal(assetSourceIssue(carryTarget, carrySources, assets), '', 'the approved state composite carries its inherited location forward');
   assert.deepEqual(resolveAssetSources({ id: 'last', title: '尾帧', kind: 'last_frame', beatId: '3', prompt: '云初', status: 'draft' }, assets).map((asset) => asset.id), ['first', 'identity', 'location']);
 });
 
 test('built-in API workflows contain no presentation-only MarkdownNote nodes', () => {
-  for (const file of ['h3-t2v.json', 'h3-ref2va.json', 'h3-fl2va.json', 'z-image-t2i.json', 'flux2-klein-edit.json', 'qwen-edit-2511.json']) {
+  for (const file of ['h3-t2v.json', 'h3-ref2va.json', 'h3-fl2va.json', 'qwen-image-21-t2i.json', 'qwen-image-21-edit.json']) {
     const workflow = JSON.parse(readFileSync(new URL(`../public/workflows/${file}`, import.meta.url), 'utf8'));
     assert.equal(Object.values(workflow).some((node) => node.class_type === 'MarkdownNote'), false, file);
   }

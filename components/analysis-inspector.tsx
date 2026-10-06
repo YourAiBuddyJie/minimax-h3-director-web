@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReviewIssue } from '@/lib/director-review';
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import type { AssetTask } from '@/lib/asset-binding';
 
 type Props = {
   analysis: DirectorAnalysis;
+  issues?: ReviewIssue[];
   assets: AssetTask[];
   aiReady: boolean;
   onSettings: () => void;
@@ -38,7 +40,7 @@ function ResultCard({ children }: { children: ReactNode }) {
   return <article className="rounded-xl border border-white/8 bg-background/45 p-3">{children}</article>;
 }
 
-export function AnalysisInspector({ analysis, assets, aiReady, onSettings }: Props) {
+export function AnalysisInspector({ analysis, assets, aiReady, onSettings, issues = [] }: Props) {
   const identityAssets = assets.filter((asset) => asset.kind === 'identity');
   const locationAssets = assets.filter((asset) => asset.kind === 'location');
   const derivedAssets = assets.filter((asset) => !['identity', 'location'].includes(asset.kind));
@@ -55,6 +57,7 @@ export function AnalysisInspector({ analysis, assets, aiReady, onSettings }: Pro
       {!aiReady && <Button size="sm" variant="outline" onClick={onSettings}>配置 AI</Button>}
     </header>
 
+    {!!issues.length && <details className="mt-3 text-xs text-amber-200"><summary>原文覆盖与生成检查：{issues.length} 项</summary><ul className="mt-2 space-y-2">{issues.map((issue, index) => <li key={index}>{issue.beatId ? `Beat ${issue.beatId}：` : ''}{issue.message}</li>)}</ul></details>}
     <Tabs defaultValue="beats" className="analysis-inspector-tabs">
       <TabsList className="analysis-result-tabs">
         <TabsTrigger value="overview">剧情概览</TabsTrigger>
@@ -78,6 +81,8 @@ export function AnalysisInspector({ analysis, assets, aiReady, onSettings }: Pro
             <div className="min-w-0 flex-1"><strong className="block text-sm">{beat.title}</strong><div className="mt-1 flex flex-wrap gap-1"><Badge variant="outline">{beat.duration}</Badge><Badge variant="outline">{beat.mode}</Badge><Badge variant="outline">{beat.status === 'ready' ? '可测试' : beat.status === 'review' ? '待检查' : '草稿'}</Badge></div></div>
           </div>
           <p className="mt-2 text-sm leading-6 text-foreground/90">{beat.summary}</p>
+          <p className="mt-2 text-xs text-emerald-200">{beat.modeReason || '未记录模式理由'} · {beat.continuityFromPrevious ? '接续上一段' : '独立输入'}</p>
+          <details className="mt-2"><summary>对应原文与状态</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-6">{beat.sourceText || '未记录对应原文'}</p><p className="mt-2 text-xs">{beat.scene} · {beat.startState || '起点待确认'} → {beat.endState || '终点待确认'}</p></details>
           <details className="mt-2"><summary>查看 H3 导演描述</summary><p className="mt-2 whitespace-pre-wrap rounded-lg bg-card p-2 text-xs leading-6 text-foreground/80">{beat.prompt}</p></details>
         </ResultCard>)}</div>
       </TabsContent>

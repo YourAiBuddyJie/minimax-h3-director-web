@@ -11,9 +11,9 @@ export type ImageProviderConfig = {
 export const imageProviderPresets = {
   local: {
     name: '本地 ComfyUI',
-    model: 'Z-Image + FLUX.2 + Qwen Edit',
+    model: 'Qwen Image 2.1',
     baseUrl: '',
-    description: '使用本机显卡，零 API 费用；保留现有两阶段一致性流程。',
+    description: '本地文生图与多参考图编辑统一使用 Qwen Image 2.1，最多 10 张参考图。',
   },
   aliyun: {
     name: '阿里云百炼',

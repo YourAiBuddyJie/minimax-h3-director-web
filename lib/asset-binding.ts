@@ -6,7 +6,7 @@ export type AssetTask = ReferenceAssetSpec & {
   promptId?: string;
   files?: OutputFile[];
   error?: string;
-  generator?: 'z-image-t2i' | 'flux2-klein' | 'qwen-edit-2511' | 'hybrid-flux2-qwen2511' | 'aliyun-qwen-image-3' | 'volcengine-seedream';
+  generator?: 'manual-upload' | 'qwen-image-21' | 'z-image-t2i' | 'flux2-klein' | 'qwen-edit-2511' | 'hybrid-flux2-qwen2511' | 'aliyun-qwen-image-3' | 'volcengine-seedream';
   imageProvider?: 'project' | 'local' | 'aliyun' | 'volcengine';
   phase?: 'blocking' | 'refining';
   draftFiles?: OutputFile[];
@@ -23,10 +23,11 @@ export function resolveBeatAssets(beat: DirectorBeat, assets: AssetTask[]): (Ass
   if (beat.mode === 'T2V') return [];
   const approved = assets.filter((asset) => asset.status === 'approved' && asset.files?.some((f) => /\.(png|jpe?g|webp)$/i.test(f.filename || '')));
   // Never guess global identities or locations. Older projects must bind them explicitly.
-  return [0, 1].map((slot) => {
+  const count = beat.continuityFromPrevious ? 0 : beat.mode === 'I2V' ? 1 : beat.mode === 'Ref2VA' ? Math.max(1, beat.referenceAssetIds?.length || 2) : 2;
+  return Array.from({ length: count }, (_, slot) => {
     const explicitId = beat.referenceAssetIds?.[slot];
     if (explicitId !== undefined) return approved.find((asset) => asset.id === explicitId);
-    const kind = beat.mode === 'FL2VA' ? (slot === 0 ? 'first_frame' : 'last_frame') : (slot === 0 ? 'identity' : 'location');
+    const kind = beat.mode === 'I2V' ? 'first_frame' : beat.mode === 'FL2VA' ? (slot === 0 ? 'first_frame' : 'last_frame') : (slot === 0 ? 'identity' : 'location');
     const candidates = approved.filter((asset) => asset.beatId === beat.id && asset.kind === kind);
     return candidates.length === 1 ? candidates[0] : undefined;
   });
@@ -49,14 +50,14 @@ export function resolveAssetSources(target: AssetTask, assets: AssetTask[]): Ass
   const identities = approved.filter((asset) => asset.kind === 'identity' && assetSubject(asset) && haystack.replace(/\s/g, '').includes(assetSubject(asset)));
   const explicitIdentities = explicit.filter((asset) => asset.kind === 'identity');
   const explicitLocations = explicit.filter((asset) => asset.kind === 'location');
-  const explicitOther = explicit.filter((asset) => !['identity', 'location', 'first_frame'].includes(asset.kind));
+  const explicitOther = explicit.filter((asset) => !['identity', 'location'].includes(asset.kind));
   const mentionedLocations = approved.filter((asset) => asset.kind === 'location' && assetSubject(asset) && haystack.replace(/\s/g, '').includes(assetSubject(asset)));
   const allLocations = approved.filter((asset) => asset.kind === 'location');
   const location = explicitLocations[0] || mentionedLocations[0] || (allLocations.length === 1 ? allLocations[0] : undefined);
   const ordered = target.kind === 'last_frame'
     ? [firstFrame, ...explicitOther, ...identities, ...explicitIdentities, location]
     : [...explicitOther, ...identities, ...explicitIdentities, location];
-  return [...new Map(ordered.filter((asset): asset is AssetTask => Boolean(asset)).map((asset) => [asset.id, asset])).values()].slice(0, 3);
+  return [...new Map(ordered.filter((asset): asset is AssetTask => Boolean(asset)).map((asset) => [asset.id, asset])).values()];
 }
 
 export function resolveIdentityMasters(target: AssetTask, assets: AssetTask[]): AssetTask[] {
