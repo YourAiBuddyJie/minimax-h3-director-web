@@ -43,7 +43,7 @@
       "steps": 4,
       "denoise": 1,
       "model": [
-        "164",
+        "192",
         0
       ]
     },
@@ -83,7 +83,7 @@
   "126": {
     "inputs": {
       "model": [
-        "164",
+        "192",
         0
       ],
       "conditioning": [
@@ -108,7 +108,7 @@
   },
   "128": {
     "inputs": {
-      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot_uncensored-by-linjian257.safetensors",
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
       "type": "minimax",
       "device": "default"
     },
@@ -283,19 +283,6 @@
     "class_type": "SaveVideo",
     "_meta": {
       "title": "保存视频"
-    }
-  },
-  "164": {
-    "inputs": {
-      "enable_fp16_accumulation": false,
-      "model": [
-        "192",
-        0
-      ]
-    },
-    "class_type": "ModelPatchTorchSettings",
-    "_meta": {
-      "title": "Model Patch Torch Settings"
     }
   },
   "192": {

@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { parseVisualReview, decideAutomaticAction } from '../lib/automatic-review.ts';
+const good={passed:true,confidence:.9,identity:true,wardrobe:true,scene:true,composition:true,style:true,reasons:[]};
+test('visual pass requires every criterion and confidence',()=>{assert.equal(parseVisualReview(JSON.stringify(good)).passed,true);for(const key of ['identity','wardrobe','scene','composition','style'])assert.equal(parseVisualReview(JSON.stringify({...good,[key]:false})).passed,false);assert.equal(parseVisualReview(JSON.stringify({...good,confidence:.7})).passed,false);});
+test('invalid visual responses stop rather than pass',()=>{assert.throws(()=>parseVisualReview('{}'));assert.throws(()=>parseVisualReview('not JSON'));});
+const base={enabled:true,busy:false,blocked:false,next:0,count:6,joined:false};
+test('automatic progression waits for explicit start and prerequisites',()=>{assert.equal(decideAutomaticAction({...base,enabled:false}),'wait');assert.equal(decideAutomaticAction({...base,busy:true}),'wait');assert.equal(decideAutomaticAction({...base,blocked:true}),'wait');});
+test('completed segments inspect before continuation, failures stop',()=>{assert.equal(decideAutomaticAction({...base,status:'completed'}),'inspect');assert.equal(decideAutomaticAction({...base,qc:'failed'}),'stop');assert.equal(decideAutomaticAction({...base,status:'uncertain'}),'stop');assert.equal(decideAutomaticAction({...base,status:'error'}),'stop');assert.equal(decideAutomaticAction(base),'submit');});
+test('join only after all accepted segments',()=>{assert.equal(decideAutomaticAction({...base,next:6}),'join');assert.equal(decideAutomaticAction({...base,next:6,joined:true}),'done');});

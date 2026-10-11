@@ -7,6 +7,13 @@ export type ProviderConfig = {
   baseUrl: string;
 };
 
+// Supported hybrid models default to thinking; this writing stage needs
+// the answer directly rather than an unobserved reasoning preamble.
+export function promptWritingOptions(config: ProviderConfig) {
+  return config.provider === 'aliyun' && /^(?:qwen3\.8-max(?:-|$)|deepseek-v4(?:\.1)?-(?:flash|pro)(?:-|$)|deepseek-v3\.(?:1|2)(?:-|$))/i.test(config.model)
+    ? { enable_thinking: false } : {};
+}
+
 export type ProviderPreset = Omit<ProviderConfig, 'apiKey'> & {
   name: string;
   keyLabel: string;

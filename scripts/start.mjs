@@ -11,15 +11,34 @@ if (!existsSync(localEnv)) {
 }
 
 const wrangler = resolve(projectRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
-const child = spawn(process.execPath, [wrangler,
-  'dev',
-  '--config', resolve(projectRoot, 'dist', 'server', 'wrangler.json'),
-  '--env-file', localEnv,
-  '--port', '3000',
-  '--ip', '127.0.0.1',
-], { cwd: projectRoot, stdio: 'inherit' });
+let child;
+let restartTimer;
+let stopping = false;
 
-child.on('exit', (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exit(code ?? 1);
-});
+function startServer() {
+  child = spawn(process.execPath, [wrangler,
+    'dev',
+    '--config', resolve(projectRoot, 'dist', 'server', 'wrangler.json'),
+    '--env-file', localEnv,
+    '--port', '3000',
+    '--ip', '127.0.0.1',
+  ], { cwd: projectRoot, stdio: 'inherit' });
+
+  child.on('error', (error) => console.error('导演台服务启动失败：', error));
+  child.on('exit', (code, signal) => {
+    child = undefined;
+    if (stopping) return;
+    console.error(`导演台服务意外退出（${signal || code}），1.5 秒后自动重启。`);
+    restartTimer = setTimeout(startServer, 1500);
+  });
+}
+
+function stopServer() {
+  stopping = true;
+  if (restartTimer) clearTimeout(restartTimer);
+  child?.kill();
+}
+
+process.on('SIGINT', stopServer);
+process.on('SIGTERM', stopServer);
+startServer();

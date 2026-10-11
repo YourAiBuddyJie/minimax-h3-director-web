@@ -39,3 +39,6 @@ tsconfig.tsbuildinfo
 /outputs/
 /work/
 /.data/
+.python-cache/
+__pycache__/
+/.local-run-logs/
