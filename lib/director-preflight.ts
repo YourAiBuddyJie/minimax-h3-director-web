@@ -7,6 +7,7 @@ export function checkDirectorEnvironment(workflow: ApiWorkflow, info: Record<str
   if (needsRefs) required.push('MiniMaxH3ReferenceToVideo');
   if (Object.values(workflow).some((node) => node.class_type === 'LoraLoaderModelOnly')) required.push('LoraLoaderModelOnly');
   if (Object.values(workflow).some((node) => node.class_type === 'SaveImage')) required.push('SaveImage');
+  if (Object.values(workflow).some(n=>n.class_type==='MiniMaxH3SigmaShift')) required.push('MiniMaxH3SigmaShift');
   const missing = required.filter((name) => !info[name]);
   if (needsRefs && !info.MiniMaxH3DirectorWeb) missing.push('MiniMaxH3DirectorWeb（安装网页独立适配节点后重启8189）');
   for (const node of Object.values(workflow)) {

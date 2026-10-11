@@ -16,6 +16,8 @@ export async function POST(request: Request) {
   let submitting = false;
   try {
     const body = await request.json() as { sourceUrl: string; directorUrl: string; beats: DirectorBeat[]; assets: AssetInput[]; options: DirectorOptions; dryRun?: boolean };
+    if (typeof body.dryRun !== 'boolean') throw new Error('必须明确指定只检查或生成；缺少操作类型时不提交模型');
+    console.info('[Director action]', JSON.stringify({ time: new Date().toISOString(), action: body.dryRun ? 'check-only' : 'generate', beatIds: body.beats?.map((beat) => beat.id) }));
     const source = localComfyBase(body.sourceUrl);
     const target = localComfyBase(body.directorUrl);
     if (!Array.isArray(body.beats) || !Array.isArray(body.assets)) throw new Error('分镜或素材数据无效');
@@ -65,6 +67,7 @@ export async function POST(request: Request) {
     const result = await response.json() as { prompt_id?: string; error?: { message?: string; details?: string }; node_errors?: unknown };
     submitting = false;
     if (!response.ok || !result.prompt_id) return NextResponse.json({ error: result.error?.message || result.error?.details || 'ComfyUI 拒绝了 Director 工作流', nodeErrors: result.node_errors }, { status: 422 });
+    console.info('[Director submitted]', JSON.stringify({ time: new Date().toISOString(), promptId: result.prompt_id, beatIds: body.beats.map((beat) => beat.id) }));
     return NextResponse.json({ promptId: result.prompt_id, timeline: compiled.timeline, rows: compiled.rows, totalSeconds: compiled.totalSeconds });
   } catch (error) { return NextResponse.json({ uncertain: submitting, error: error instanceof Error ? error.message : 'Director 请求失败' }, { status: 400 }); }
 }

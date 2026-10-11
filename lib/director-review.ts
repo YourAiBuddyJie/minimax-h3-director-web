@@ -2,10 +2,15 @@ import type { DirectorAnalysis, DirectorBeat } from './director.ts';
 
 export type ReviewIssue = { severity: 'error' | 'warning'; message: string; beatId?: string };
 export function dialogueLines(text: string): string[] {
-  const quoted = [...text.matchAll(/[“「『"]([^”」』"\n]+)[”」』"]/g)].map((m) => m[1]);
-  const metadataLabels = new Set(['开始状态', '起始状态', '结束状态', '起止状态', '场景', '场景与构图', '风格', '人物', '时长', '总时长', '目标时长', '构图', '镜头', '声音', '音效', '提示词', '模式', '模式理由', '接续', '结束画面', '起始画面']);
-  const spoken = [...text.matchAll(/^[ \t]*(?:\*\*)?([\p{Script=Han}A-Za-z·]{1,12})(?:\*\*)?(?:[（(][^）)\n]*[）)])?[：:]([^\n]+)/gmu)]
-    .filter((m) => !metadataLabels.has(m[1]))
+  const metadataLabels = new Set(['类型', '题材', '主角', '角色', '角色设定', '人物设定', '演唱要求', '表演要求', '制作要求', '画面要求', '全片要求', '全局设定', '画幅', '比例', '画风', '视觉风格', '开始状态', '起始状态', '结束状态', '起止状态', '场景', '场景与构图', '风格', '人物', '时长', '总时长', '目标时长', '构图', '镜头', '声音', '音效', '提示词', '模式', '模式理由', '接续', '结束画面', '起始画面']);
+  // Production headers describe the film, even when their values contain quotes.
+  // Filter entire metadata lines before extracting spoken or sung text.
+  const content = text.split('\n').filter((line) => {
+    const label = line.match(/^[ \t]*(?:\*\*)?([\p{Script=Han}A-Za-z·]{1,12})(?:\*\*)?[：:]/u)?.[1];
+    return !label || !metadataLabels.has(label);
+  }).join('\n');
+  const quoted = [...content.matchAll(/[“「『"]([^”」』"\n]+)[”」』"]/g)].map((m) => m[1].trim()).filter(Boolean);
+  const spoken = [...content.matchAll(/^[ \t]*(?:\*\*)?([\p{Script=Han}A-Za-z·]{1,12})(?:\*\*)?(?:[（(][^）)\n]*[）)])?[：:]([^\n]+)/gmu)]
     .map((m) => m[2].replace(/\*\*/g, '').trim()).filter((line) => !line.includes('【') && !/[“「『"]/.test(line));
   return [...new Set([...quoted, ...spoken])];
 }
@@ -13,12 +18,14 @@ export function dialogueLines(text: string): string[] {
 export function reviewBeat(beat: DirectorBeat, previous?: DirectorBeat): ReviewIssue[] {
   const issues: ReviewIssue[] = [];
   const add = (severity: ReviewIssue['severity'], message: string) => issues.push({ severity, message, beatId: beat.id });
+  if (beat.pipelineVersion===2 && beat.mode!=='Ref2VA') add('error','新版分镜统一使用多参考工作流');
   if (!beat.prompt?.trim()) add('error', '生成描述为空');
+  if (beat.promptWorkflow && beat.promptWorkflow !== beat.mode) add('error', `提示词仍属于 ${beat.promptWorkflow}，请按 ${beat.mode} 重写后重新采纳，不能共用旧提示词`);
   if (/<Picture\s+\d+>|@[\w-]+/.test(beat.prompt || '')) add('warning', '动作描述含预写图片标签；切换选图后请核对，图片编号应由系统统一生成');
   if (/subject_definitions:|integrated_multimodal_description:/.test(beat.prompt || '')) add('warning', '动作描述已含完整 H3 章节，建议仅保留镜头描述，避免重复包装');
   if ((beat.startState || '') === (beat.endState || '') && beat.startState) add('warning', '起止状态相同，请确认动作变化是否已描述清楚');
   const seconds = Number.parseFloat(beat.duration);
-  if (!Number.isFinite(seconds) || seconds < 4 || seconds > 15) add('error', '时长必须为 4–15 秒');
+  if (!Number.isFinite(seconds) || seconds < (beat.pipelineVersion===2 ? 3 : 4) || seconds > (beat.pipelineVersion===2 ? 12 : 15)) add('error', beat.pipelineVersion===2 ? '时长必须为3–12秒' : '时长必须为 4–15 秒');
   for (const line of dialogueLines(beat.sourceText || '')) if (!beat.prompt?.includes(line)) add('error', `原文对白未完整保留：${line}`);
   const count = dialogueLines(beat.sourceText || beat.prompt || '').join('').length;
   if (count / 4.2 + 1.5 > seconds) add('warning', '对白加停顿可能超出本段时长，建议拆段或延长');

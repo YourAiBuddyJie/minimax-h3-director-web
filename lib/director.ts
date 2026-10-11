@@ -6,6 +6,7 @@ export type DirectorBeat = {
   status: 'ready' | 'review' | 'draft';
   summary: string;
   prompt: string;
+  promptWorkflow?: DirectorBeat['mode'];
   referenceAssetIds?: string[];
   sourceText?: string;
   scene?: string;
@@ -15,6 +16,10 @@ export type DirectorBeat = {
   endState?: string;
   reviewNotes?: string[];
   visualStyle?: string;
+  storyboardApproval?: string;
+  pipelineVersion?: 2;
+  promptApproval?: string;
+  promptStorySignature?: string;
 };
 
 export type ReferenceAssetKind = 'identity' | 'location' | 'prop' | 'costume' | 'body_state' | 'first_frame' | 'last_frame';
@@ -40,6 +45,7 @@ export type DirectorAnalysis = {
   beats: DirectorBeat[];
   referenceAssets: ReferenceAssetSpec[];
   source: 'ai' | 'local-draft';
+  pipelineVersion?: 2;
 };
 
 const actionSignals = /醒来|睁眼|起身|站起|坐起|跪下|倒下|转身|回头|走|跑|进入|离开|靠近|退后|抬手|伸手|抓|握|解开|脱下|穿上|打开|关闭|拔出|放下|挣扎|攻击|闪避|拥抱|扶起|背起|抱起|看向|对视|说|问|答|喊|低语|反应|发现|确认|递给|接过|破碎|坠落/g;
@@ -140,8 +146,8 @@ export function createReferenceAssetPlan(characters: string[], spaces: string[],
   }));
   beats.filter((beat) => beat.mode === 'FL2VA' || (beat.mode === 'I2V' && !beat.continuityFromPrevious)).forEach((beat) => {
     const baseSources = [...characters.map((_, index) => `character-${index + 1}`), ...spaces.map((_, index) => `location-${index + 1}`)].slice(0, 3);
-    assets.push({ id: `beat-${beat.id}-first`, title: `Beat ${beat.id} · 首帧`, kind: 'first_frame', beatId: beat.id, width: 768, height: 1344, promptVersion: 2, sourceAssetIds: baseSources, prompt: `竖屏影视完整构图，作为首尾帧视频的字面首帧。剧本世界：${world}。静止画面状态：${beat.startState || beat.summary}。表现动作触发前的明确初始状态；人物站位、视线、身体高度、服装、伤势、道具位置、空间地标与光线均清晰可见，单一连续空间，写实电影画面，无字幕。`, negativePrompt });
-    if (beat.mode === 'FL2VA') assets.push({ id: `beat-${beat.id}-last`, title: `Beat ${beat.id} · 尾帧`, kind: 'last_frame', beatId: beat.id, width: 768, height: 1344, promptVersion: 2, sourceAssetIds: [`beat-${beat.id}-first`, ...baseSources].slice(0, 3), prompt: `竖屏影视完整构图，作为首尾帧视频的字面尾帧。剧本世界：${world}。静止画面状态：${beat.endState || beat.summary}。表现动作完成后的明确结束状态；保持与首帧相同机位、轴线、人物身份、服装、空间地标与光线，只改变剧情要求的动作、道具或身体状态，写实电影画面，无字幕。`, negativePrompt });
+    assets.push({ id: `beat-${beat.id}-first`, title: `Beat ${beat.id} · 首帧`, kind: 'first_frame', beatId: beat.id, width: 768, height: 1344, promptVersion: 2, sourceAssetIds: baseSources, prompt: `竖屏影视完整构图，剧本世界：${world}。静止画面状态：${beat.startState || beat.summary}。表现动作触发前的明确初始状态；人物站位、视线、身体高度、服装、伤势、道具位置、空间地标与光线均清晰可见，单一连续空间，写实电影画面，无字幕。`, negativePrompt });
+    if (beat.mode === 'FL2VA') assets.push({ id: `beat-${beat.id}-last`, title: `Beat ${beat.id} · 尾帧`, kind: 'last_frame', beatId: beat.id, width: 768, height: 1344, promptVersion: 2, sourceAssetIds: [`beat-${beat.id}-first`, ...baseSources].slice(0, 3), prompt: `竖屏影视完整构图，剧本世界：${world}。静止画面状态：${beat.endState || beat.summary}。表现动作完成后的明确结束状态；保持与参考图相同机位、轴线、人物身份、服装、空间地标与光线，只改变剧情要求的动作、道具或身体状态，写实电影画面，无字幕。`, negativePrompt });
   });
   return assets;
 }

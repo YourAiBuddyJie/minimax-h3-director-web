@@ -50,7 +50,7 @@ export function AnalysisInspector({ analysis, assets, aiReady, onSettings, issue
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="truncate">{analysis.projectTitle}</h2>
-          <Badge variant={analysis.source === 'ai' ? 'default' : 'outline'}>{analysis.source === 'ai' ? 'AI 导演分析' : '规则草稿'}</Badge>
+          <Badge variant={analysis.source === 'ai' ? 'default' : 'outline'}>{analysis.source === 'ai' ? analysis.pipelineVersion===2 ? 'AI 分镜分析' : 'AI 导演分析' : '规则草稿'}</Badge>
         </div>
         <p>分析结果已保存，可逐项检查并展开查看完整描述。</p>
       </div>
@@ -78,12 +78,12 @@ export function AnalysisInspector({ analysis, assets, aiReady, onSettings, issue
         <div className="space-y-2">{analysis.beats.map((beat, index) => <ResultCard key={beat.id}>
           <div className="flex items-start gap-2">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground">{String(index + 1).padStart(2, '0')}</span>
-            <div className="min-w-0 flex-1"><strong className="block text-sm">{beat.title}</strong><div className="mt-1 flex flex-wrap gap-1"><Badge variant="outline">{beat.duration}</Badge><Badge variant="outline">{beat.mode}</Badge><Badge variant="outline">{beat.status === 'ready' ? '可测试' : beat.status === 'review' ? '待检查' : '草稿'}</Badge></div></div>
+            <div className="min-w-0 flex-1"><strong className="block text-sm">{beat.title}</strong><div className="mt-1 flex flex-wrap gap-1"><Badge variant="outline">{beat.duration}</Badge>{beat.pipelineVersion!==2 && <Badge variant="outline">{beat.mode}</Badge>}<Badge variant="outline">{beat.status === 'ready' ? '可测试' : beat.status === 'review' ? '待检查' : '草稿'}</Badge></div></div>
           </div>
           <p className="mt-2 text-sm leading-6 text-foreground/90">{beat.summary}</p>
-          <p className="mt-2 text-xs text-emerald-200">{beat.modeReason || '未记录模式理由'} · {beat.continuityFromPrevious ? '接续上一段' : '独立输入'}</p>
+          {beat.pipelineVersion!==2 && <p className="mt-2 text-xs text-emerald-200">{beat.modeReason || '未记录模式理由'} · {beat.continuityFromPrevious ? '接续上一段' : '独立输入'}</p>}
           <details className="mt-2"><summary>对应原文与状态</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-6">{beat.sourceText || '未记录对应原文'}</p><p className="mt-2 text-xs">{beat.scene} · {beat.startState || '起点待确认'} → {beat.endState || '终点待确认'}</p></details>
-          <details className="mt-2"><summary>查看 H3 导演描述</summary><p className="mt-2 whitespace-pre-wrap rounded-lg bg-card p-2 text-xs leading-6 text-foreground/80">{beat.prompt}</p></details>
+          {beat.prompt && <details className="mt-2"><summary>查看 H3 导演描述</summary><p className="mt-2 whitespace-pre-wrap rounded-lg bg-card p-2 text-xs leading-6 text-foreground/80">{beat.prompt}</p></details>}
         </ResultCard>)}</div>
       </TabsContent>
 

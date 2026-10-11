@@ -12,7 +12,7 @@ export function normalizeDirectorAnalysis(value: unknown, script: string): Direc
     if (typeof beat.sourceText !== 'string' || !beat.sourceText.trim() || !script.includes(beat.sourceText)) throw new Error(`Beat ${beat.id} 的 sourceText 不是剧本原文，请重新分析`);
     if (!Array.isArray(beat.referenceAssetIds) || beat.referenceAssetIds.some((id) => typeof id !== 'string')) throw new Error(`Beat ${beat.id} 素材引用无效`);
     if (typeof beat.continuityFromPrevious !== 'boolean' || typeof beat.modeReason !== 'string' || typeof beat.scene !== 'string' || typeof beat.startState !== 'string' || typeof beat.endState !== 'string' || !Array.isArray(beat.reviewNotes) || beat.reviewNotes.some((note) => typeof note !== 'string')) throw new Error(`Beat ${beat.id} 缺少模式理由或连续性分析`);
-    const duration = normalizeBeatDuration(beat.duration);
+    const duration = beat.pipelineVersion === 2 ? beat.duration : normalizeBeatDuration(beat.duration);
     return { ...beat, duration, status: ['ready', 'review', 'draft'].includes(beat.status) ? beat.status : 'review', reviewNotes: [...beat.reviewNotes, ...(duration !== beat.duration ? ['模型时长格式已规范化，请检查表演是否能完成'] : [])] };
   });
   const assetIds = new Set<string>();

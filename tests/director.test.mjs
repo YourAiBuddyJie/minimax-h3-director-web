@@ -82,6 +82,10 @@ test('Turbo uses matching FL2VA LoRA, eight steps and leaves standard unchanged'
   assert.deepEqual(turbo.workflow['5'].inputs.model, ['8', 0]);
   assert.ok(turbo.timeline.clips.every((clip) => clip.settings.steps === 8 && clip.settings.scheduler === 'simple'));
   assert.equal(compileDirectorTimeline([base], {}, options).workflow['8'], undefined);
-  assert.throws(() => compileDirectorTimeline([{ ...base, mode: 'Ref2VA', referenceAssetIds: ['identity', 'scene'] }], images, { ...options, acceleration: 'turbo8' }), /Turbo/);
+  const ref=compileDirectorTimeline([{...base,mode:'Ref2VA',referenceAssetIds:['identity','scene']}],images,{...options,acceleration:'turbo8'});
+  assert.equal(ref.timeline.clips[0].settings.sampler,'euler');
+  assert.equal(ref.workflow['11'].inputs.lora_name,'MiniMax-H3-Ref2VA-Acc-8Step_pruned_comfy.safetensors');
+  assert.equal(ref.workflow['12'].class_type,'MiniMaxH3SigmaShift');
+  assert.equal(ref.workflow['8'],undefined);
   assert.ok(checkDirectorEnvironment(turbo.workflow, {}).includes('minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors'));
 });

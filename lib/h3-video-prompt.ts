@@ -1,3 +1,4 @@
+import { videoMotionContract } from './video-prompt-rules.ts';
 import type { DirectorBeat, ReferenceAssetKind } from './director.ts';
 
 export type H3PromptReference = { id: string; title: string; kind?: ReferenceAssetKind; role?: string };
@@ -6,7 +7,7 @@ export function parseBeatDuration(value: string): number | null {
   const match = String(value || '').match(/\d+(?:\.\d+)?/);
   if (!match) return null;
   const seconds = Number(match[0]);
-  return Number.isFinite(seconds) && seconds >= 4 && seconds <= 15 ? seconds : null;
+  return Number.isFinite(seconds) && seconds >= 3 && seconds <= 15 ? seconds : null;
 }
 
 export function normalizeBeatDuration(value: string, fallback = 6): string {
@@ -40,7 +41,7 @@ export function buildH3VideoPrompt(beat: DirectorBeat, inputReferences: H3Prompt
   const duration = parseBeatDuration(beat.duration) ?? 6;
   const references = inputReferences.map((reference, index) => ({ ...reference, atId: `@${safeId(reference.id, index)}`, picture: `<Picture ${index + 1}>`, role: referenceRole(reference, index, beat.mode) }));
   const fill = 'Compose the scene edge-to-edge across the entire target canvas, with scene content reaching the top and bottom. No embedded landscape panel, letterbox bars, pillarbox bars, black borders or split screen. Reference images supply only their stated roles, not their framing or borders.';
-  const source = [fill, (beat.prompt || beat.summary).trim(), beat.startState ? `Starting physical state: ${beat.startState}.` : '', beat.endState ? `Required ending physical state: ${beat.endState}.` : ''].filter(Boolean).join(' ');
+  const source = [fill, videoMotionContract, beat.startState ? `Opening state contract: ${beat.startState}.` : '', `Authored action and performance:\n${(beat.prompt || beat.summary).trim()}`, beat.endState ? `Ending state contract: ${beat.endState}.` : ''].filter(Boolean).join('\n');
   const style = beat.visualStyle?.trim() || 'Preserve the visual style of the opening frame and the authored description';
   const framing = aspect === '9:16' ? 'vertical' : aspect === '16:9' ? 'landscape' : 'square';
   const soundscape = 'Use only diegetic ambience, breathing, fabric movement, footsteps, impacts, and prop sounds supported by the described action; synchronize every sound to the visible event and do not invent extra dialogue.';
@@ -57,7 +58,7 @@ export function buildH3VideoPrompt(beat: DirectorBeat, inputReferences: H3Prompt
     const definitions = references.map((reference, index) => `<Subject ${index + 1}> is defined by ${reference.picture} (${reference.atId}, input image ${index + 1}, “${reference.title}”) and provides ${reference.role}.`).join('\n');
     const retention = references.map((reference, index) => `<Subject ${index + 1}> (appears in [Shot 1]): fully_preserved - preserve ${reference.role}; use ${reference.atId} only for this stated purpose.`).join('\n');
     const subjects = references.map((_, index) => `<Subject ${index + 1}>`).join(' and ');
-    return `subject_definitions:\n${definitions}\n\nsummary:\n[reference generation] Create a ${duration.toFixed(2)}-second ${framing} drama shot using ${subjects} according to the explicit reference roles above.\n\nretention_analysis:\n${retention}\n\ndetailed_description:\n${style}. The target video uses one physically continuous space.\n[Shot 1] ${source} Keep every referenced identity, costume, body state, prop state, landmark, camera axis, and light direction consistent for the full ${duration.toFixed(2)} seconds. Use the exact original dialogue, speaking order, and addressee; do not add subtitles, watermarks, readable overlay text, unreferenced characters, or a second location.\n\noverall_soundscape:\n${soundscape}\n\nnon_diegetic_music:\nN/A`;
+    return `subject_definitions:\n${definitions}\n\nsummary:\n[reference generation] Create a ${duration.toFixed(2)}-second ${framing} drama shot using ${subjects} according to the explicit reference roles above.\n\nretention_analysis:\n${retention}\n\ndetailed_description:\n${style}. The target video uses one physically continuous space.\n[Shot 1] ${source} Keep referenced identity, costume, prop design, landmarks, camera axis and lighting consistent; let body and prop states change only through the authored visible actions for the full ${duration.toFixed(2)} seconds. Use the exact original dialogue, speaking order, and addressee; do not add subtitles, watermarks, readable overlay text, unreferenced characters, or a second location.\n\noverall_soundscape:\n${soundscape}\n\nnon_diegetic_music:\nN/A`;
   }
 
   return `integrated_multimodal_description: [Shot 1] ${style}. ${framing} drama in one physically continuous space. ${source} Complete the described action and reaction within ${duration.toFixed(2)} seconds. Preserve the exact original dialogue, speaking order, and addressee; do not add subtitles, watermarks, readable overlay text, extra characters, or an unrelated location.\n\noverall_soundscape: ${soundscape}\n\nnon_diegetic_music: N/A`;

@@ -2,7 +2,7 @@
 
 标准模式保留原参数。Turbo模式在FL2VA主模型与Director之间接入LoraLoaderModelOnly，强度1，使用Comfy-Org的minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors；各段res_multistep/simple/8步。沿用现有INT8主模型、NVFP4文本编码器与显存卸载策略。不修改上游Director。
 
-支持T2V、I2V、FL2VA及I2V接续；Ref2VA需要对应独立LoRA，本版明确阻止不匹配模式。选择Turbo后预检模型文件和节点，缺失不会退化成普通模型8步。
+支持T2V、I2V、FL2VA及I2V接续；新版Ref2VA已接入独立Acc-8Step LoRA，使用Euler/simple、视频sigma shift 12与音频3，不能套用FL2VA权重。详见[两阶段多参考说明](两阶段分镜与多参考生成.md)。选择Turbo后预检模型文件和节点，缺失不会退化成普通模型8步。
 
 来源：https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_minimax_h3_i2v.json
 模型：https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/loras

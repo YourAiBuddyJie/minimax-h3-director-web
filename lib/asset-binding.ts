@@ -42,18 +42,18 @@ function assetSubject(asset: AssetTask) {
 }
 
 export function resolveAssetSources(target: AssetTask, assets: AssetTask[]): AssetTask[] {
-  if (target.kind === 'identity' || target.kind === 'location') return [];
+  if (target.kind === 'identity' || target.kind === 'location' || (target.kind==='prop' && !target.sourceAssetIds?.length)) return [];
   const approved = assets.filter((asset) => asset.id !== target.id && hasUsableImage(asset));
   const explicit = (target.sourceAssetIds || []).map((id) => approved.find((asset) => asset.id === id)).filter((asset): asset is AssetTask => Boolean(asset));
   const haystack = `${target.title} ${target.prompt}`;
-  const firstFrame = target.kind === 'last_frame' ? approved.find((asset) => asset.kind === 'first_frame' && asset.beatId === target.beatId) : undefined;
+  const firstFrame = target.kind === 'last_frame' ? explicit.find((asset) => ['first_frame', 'last_frame'].includes(asset.kind)) || approved.find((asset) => asset.kind === 'first_frame' && asset.beatId === target.beatId) : undefined;
   const identities = approved.filter((asset) => asset.kind === 'identity' && assetSubject(asset) && haystack.replace(/\s/g, '').includes(assetSubject(asset)));
   const explicitIdentities = explicit.filter((asset) => asset.kind === 'identity');
   const explicitLocations = explicit.filter((asset) => asset.kind === 'location');
   const explicitOther = explicit.filter((asset) => !['identity', 'location'].includes(asset.kind));
   const mentionedLocations = approved.filter((asset) => asset.kind === 'location' && assetSubject(asset) && haystack.replace(/\s/g, '').includes(assetSubject(asset)));
   const allLocations = approved.filter((asset) => asset.kind === 'location');
-  const location = explicitLocations[0] || mentionedLocations[0] || (allLocations.length === 1 ? allLocations[0] : undefined);
+  const location = explicitLocations[0] || (['first_frame','last_frame'].includes(target.kind) ? mentionedLocations[0] || (allLocations.length===1 ? allLocations[0] : undefined) : undefined);
   const ordered = target.kind === 'last_frame'
     ? [firstFrame, ...explicitOther, ...identities, ...explicitIdentities, location]
     : [...explicitOther, ...identities, ...explicitIdentities, location];
@@ -69,6 +69,11 @@ export function resolveIdentityMasters(target: AssetTask, assets: AssetTask[]): 
 
 export function assetSourceIssue(target: AssetTask, sources: AssetTask[], assets: AssetTask[]) {
   if (target.kind === 'identity' || target.kind === 'location') return '';
+  for (const id of target.sourceAssetIds || []) {
+    const dependency = assets.find((asset) => asset.id === id);
+    if (!dependency || !hasUsableImage(dependency)) return `请先生成并采用依赖图：${dependency?.title || id}`;
+  }
+  if (target.kind === 'last_frame' && !sources.some((asset) => ['first_frame', 'last_frame'].includes(asset.kind))) return '尾帧缺少已采用的完整首帧，不能只用人物或场景母版生成';
   const haystack = `${target.title} ${target.prompt}`.replace(/\s/g, '');
   const intendedIdentities = assets.filter((asset) => asset.kind === 'identity' && ((target.sourceAssetIds || []).includes(asset.id) || (assetSubject(asset) && haystack.includes(assetSubject(asset)))));
   const inheritedIds = new Set<string>();
@@ -84,6 +89,6 @@ export function assetSourceIssue(target: AssetTask, sources: AssetTask[], assets
   }
   const missingIdentity = intendedIdentities.find((asset) => !inheritedIds.has(asset.id));
   if (missingIdentity) return `缺少人物母版：请先采用“${missingIdentity.title}”`;
-  if (!assets.some((asset) => inheritedIds.has(asset.id) && (asset.kind === 'location' || asset.kind === 'first_frame'))) return '缺少场景母版：请先采用对应连续空间';
+  if (['first_frame','last_frame'].includes(target.kind) && !assets.some((asset) => inheritedIds.has(asset.id) && (asset.kind === 'location' || asset.kind === 'first_frame'))) return '缺少场景母版：请先采用对应连续空间';
   return '';
 }
